@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color: #102a43;
+}
+
+body {
+  @apply font-body min-h-screen bg-gradient-to-br from-mist via-white to-sand/70 text-ink;
+}
+
+.card {
+  @apply rounded-2xl bg-white p-5 shadow-card;
+}
+
+.input {
+  @apply w-full rounded-xl border border-slate-300 px-3 py-2 outline-none transition focus:border-ocean focus:ring-2 focus:ring-ocean/20;
+}
+
+.btn-primary {
+  @apply rounded-xl bg-ocean px-4 py-2 font-semibold text-white transition hover:bg-ocean/90 disabled:cursor-not-allowed disabled:bg-slate-300;
+}
+
+.btn-secondary {
+  @apply rounded-xl border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700 transition hover:border-ocean hover:text-ocean;
+}
+
+.badge {
+  @apply rounded-full px-2 py-1 text-xs font-semibold;
+}
