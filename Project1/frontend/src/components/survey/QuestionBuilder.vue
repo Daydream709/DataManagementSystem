@@ -244,7 +244,8 @@ resetForm()
       <p class="text-sm font-semibold">选项配置</p>
       <div v-for="(option, index) in form.optionLabels" :key="index" class="flex items-center gap-2">
         <input v-model="form.optionLabels[index]" class="input" :placeholder="`选项 ${index + 1}`" />
-        <button class="btn-secondary" type="button" @click="removeOption(form, index)">删除</button>
+        <button class="btn-secondary shrink-0 whitespace-nowrap px-4" type="button"
+          @click="removeOption(form, index)">删除</button>
       </div>
       <button class="btn-secondary" type="button" @click="addOption(form)">新增选项</button>
     </div>
@@ -314,7 +315,8 @@ resetForm()
         <p class="text-sm font-semibold">选项配置</p>
         <div v-for="(option, index) in editForm.optionLabels" :key="index" class="flex items-center gap-2">
           <input v-model="editForm.optionLabels[index]" class="input" :placeholder="`选项 ${index + 1}`" />
-          <button class="btn-secondary" type="button" @click="removeOption(editForm, index)">删除</button>
+          <button class="btn-secondary shrink-0 whitespace-nowrap px-4" type="button"
+            @click="removeOption(editForm, index)">删除</button>
         </div>
         <button class="btn-secondary" type="button" @click="addOption(editForm)">新增选项</button>
       </div>
