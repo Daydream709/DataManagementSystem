@@ -12,6 +12,7 @@ const slug = route.params.slug
 const loading = ref(false)
 const stepping = ref(false)
 const submitting = ref(false)
+const finalActionLocked = ref(false)
 const message = ref('')
 const errorMessage = ref('')
 
@@ -192,11 +193,16 @@ const previousStep = () => {
 }
 
 const submitSurvey = async () => {
+  if (finalActionLocked.value) {
+    return
+  }
+
   if (!canSubmit.value) {
     errorMessage.value = '仍有必答题未完成，暂时无法提交'
     return
   }
 
+  finalActionLocked.value = true
   submitting.value = true
   errorMessage.value = ''
   message.value = ''
@@ -289,9 +295,9 @@ onMounted(initialize)
         </div>
 
         <div class="flex flex-wrap gap-2">
-          <button class="btn-secondary" @click="backToQuestions">返回继续填写</button>
-          <button class="btn-primary" :disabled="submitting || !canSubmit" @click="submitSurvey">
-            {{ submitting ? '提交中...' : '填写完成并提交' }}
+          <button class="btn-secondary" :disabled="finalActionLocked" @click="backToQuestions">返回继续填写</button>
+          <button class="btn-primary" :disabled="submitting || !canSubmit || finalActionLocked" @click="submitSurvey">
+            {{ finalActionLocked ? '已提交' : submitting ? '提交中...' : '填写完成并提交' }}
           </button>
         </div>
       </div>

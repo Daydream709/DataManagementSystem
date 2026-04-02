@@ -61,6 +61,7 @@
   "title": "校园饮食习惯",
   "description": "用于课程调研",
   "allow_anonymous": true,
+  "allow_multiple_submissions": true,
   "deadline": "2026-04-01T12:00:00Z"
 }
 ```

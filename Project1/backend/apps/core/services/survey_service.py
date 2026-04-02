@@ -50,6 +50,11 @@ def _get_owned_survey(owner_id: str, survey_id: str) -> dict[str, Any]:
     return survey
 
 
+def _ensure_draft_editable(survey: dict[str, Any], action: str) -> None:
+    if survey.get("status") != "draft":
+        raise ValidationError(f"问卷当前状态不允许{action}，仅草稿状态可操作")
+
+
 def _question_to_response(question: dict[str, Any]) -> dict[str, Any]:
     item = serialize_doc(question)
     item["id"] = item.pop("_id")
@@ -71,6 +76,7 @@ def create_survey(owner_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         "title": payload["title"],
         "description": payload.get("description") or "",
         "allow_anonymous": bool(payload.get("allow_anonymous", False)),
+        "allow_multiple_submissions": bool(payload.get("allow_multiple_submissions", True)),
         "deadline": payload.get("deadline"),
         "status": "draft",
         "slug": uuid4().hex[:12],
@@ -95,7 +101,8 @@ def get_survey(owner_id: str, survey_id: str) -> dict[str, Any]:
 
 def update_survey(owner_id: str, survey_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     surveys = get_collection("surveys")
-    _get_owned_survey(owner_id, survey_id)
+    survey = _get_owned_survey(owner_id, survey_id)
+    _ensure_draft_editable(survey, "编辑问卷")
 
     update_payload = {**payload, "updated_at": _now()}
     surveys.update_one(
@@ -121,9 +128,27 @@ def delete_survey(owner_id: str, survey_id: str) -> None:
 
 
 def update_survey_status(owner_id: str, survey_id: str, status: str) -> dict[str, Any]:
+    surveys = get_collection("surveys")
     if status not in ("published", "closed", "draft"):
         raise ValidationError("无效状态")
-    return update_survey(owner_id, survey_id, {"status": status})
+
+    survey = _get_owned_survey(owner_id, survey_id)
+    current_status = survey.get("status")
+
+    if status == "draft" and current_status in ("published", "closed"):
+        raise ValidationError("发布和关闭状态不能改回草稿")
+
+    if current_status == status:
+        return _survey_to_response(survey)
+
+    surveys.update_one(
+        {"_id": survey["_id"]},
+        {"$set": {"status": status, "updated_at": _now()}},
+    )
+    updated = surveys.find_one({"_id": survey["_id"]})
+    if not updated:
+        raise NotFound("问卷状态更新后未找到")
+    return _survey_to_response(updated)
 
 
 def list_questions(owner_id: str, survey_id: str) -> list[dict[str, Any]]:
@@ -147,8 +172,7 @@ def _ensure_order_unique(survey_oid: ObjectId, order: int, exclude_id: ObjectId 
 
 def create_question(owner_id: str, survey_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     survey = _get_owned_survey(owner_id, survey_id)
-    if survey["status"] == "closed":
-        raise ValidationError("问卷已关闭，不可新增题目")
+    _ensure_draft_editable(survey, "新增题目")
 
     survey_oid = survey["_id"]
     _ensure_order_unique(survey_oid, payload["order"])
@@ -184,7 +208,12 @@ def _get_owned_question(owner_id: str, question_id: str) -> dict[str, Any]:
 
 def update_question(owner_id: str, question_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     questions = get_collection("questions")
+    surveys = get_collection("surveys")
     current = _get_owned_question(owner_id, question_id)
+    survey = surveys.find_one({"_id": current["survey_id"], "owner_id": to_object_id(owner_id, "owner_id")})
+    if not survey:
+        raise NotFound("问卷不存在")
+    _ensure_draft_editable(survey, "编辑题目")
 
     merged = {**current, **payload}
     if "order" in payload:
@@ -210,7 +239,12 @@ def update_question(owner_id: str, question_id: str, payload: dict[str, Any]) ->
 def delete_question(owner_id: str, question_id: str) -> None:
     questions = get_collection("questions")
     jump_rules = get_collection("jump_rules")
+    surveys = get_collection("surveys")
     question = _get_owned_question(owner_id, question_id)
+    survey = surveys.find_one({"_id": question["survey_id"], "owner_id": to_object_id(owner_id, "owner_id")})
+    if not survey:
+        raise NotFound("问卷不存在")
+    _ensure_draft_editable(survey, "删除题目")
 
     questions.delete_one({"_id": question["_id"]})
     jump_rules.delete_many(
@@ -229,7 +263,8 @@ def _normalize_rule_type(question: dict[str, Any]) -> str:
 
 
 def create_jump_rule(owner_id: str, survey_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-    _get_owned_survey(owner_id, survey_id)
+    survey = _get_owned_survey(owner_id, survey_id)
+    _ensure_draft_editable(survey, "配置跳转规则")
     question = _get_owned_question(owner_id, payload["question_id"])
     if str(question["survey_id"]) != survey_id:
         raise PermissionDenied("题目不属于当前问卷")
@@ -282,11 +317,16 @@ def list_jump_rules(owner_id: str, survey_id: str) -> list[dict[str, Any]]:
 
 def delete_jump_rule(owner_id: str, rule_id: str) -> None:
     jump_rules = get_collection("jump_rules")
+    surveys = get_collection("surveys")
     rule = jump_rules.find_one(
         {"_id": to_object_id(rule_id, "rule_id"), "owner_id": to_object_id(owner_id, "owner_id")}
     )
     if not rule:
         raise NotFound("跳转规则不存在")
+    survey = surveys.find_one({"_id": rule["survey_id"], "owner_id": to_object_id(owner_id, "owner_id")})
+    if not survey:
+        raise NotFound("问卷不存在")
+    _ensure_draft_editable(survey, "删除跳转规则")
     jump_rules.delete_one({"_id": rule["_id"]})
 
 
@@ -508,12 +548,19 @@ def submit_survey(slug: str, respondent_id: str, payload: dict[str, Any]) -> dic
     if not respondent_id:
         raise ValidationError("填写问卷前请先登录")
 
+    respondent_oid = to_object_id(respondent_id, "respondent_id")
+
     if payload.get("is_anonymous") and not survey.get("allow_anonymous"):
         raise ValidationError({"is_anonymous": "该问卷不允许匿名提交"})
 
     questions_col = get_collection("questions")
     rules_col = get_collection("jump_rules")
     answers_col = get_collection("answers")
+
+    if not survey.get("allow_multiple_submissions", True):
+        existing = answers_col.find_one({"survey_id": survey["_id"], "respondent_id": respondent_oid})
+        if existing:
+            raise ValidationError("该问卷不允许同一用户重复填写")
 
     sorted_questions = list(questions_col.find({"survey_id": survey["_id"]}).sort("order", 1))
     if not sorted_questions:
@@ -572,7 +619,7 @@ def submit_survey(slug: str, respondent_id: str, payload: dict[str, Any]) -> dic
     doc = {
         "survey_id": survey["_id"],
         # 需要登录后填写：始终保留提交者ID，匿名仅控制展示层是否暴露身份。
-        "respondent_id": to_object_id(respondent_id, "respondent_id"),
+        "respondent_id": respondent_oid,
         "is_anonymous": bool(payload.get("is_anonymous", False)),
         "answers": answer_list,
         "submitted_at": _now(),

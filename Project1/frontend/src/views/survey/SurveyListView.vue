@@ -23,6 +23,7 @@ const createForm = reactive({
   title: '',
   description: '',
   allow_anonymous: false,
+  allow_multiple_submissions: true,
   deadline: ''
 })
 
@@ -50,6 +51,7 @@ const createSurvey = async () => {
     createForm.title = ''
     createForm.description = ''
     createForm.allow_anonymous = false
+    createForm.allow_multiple_submissions = true
     createForm.deadline = ''
     message.value = '问卷创建成功'
     await fetchSurveys()
@@ -59,6 +61,11 @@ const createSurvey = async () => {
 }
 
 const runAction = async (surveyId, action) => {
+  if (action === 'delete') {
+    const confirmed = window.confirm('确认删除该问卷吗？删除后题目、跳转规则和填写记录将一并删除。')
+    if (!confirmed) return
+  }
+
   actionLoadingId.value = `${surveyId}-${action}`
   errorMessage.value = ''
   message.value = ''
@@ -77,6 +84,8 @@ const runAction = async (surveyId, action) => {
 }
 
 const canOpenFill = (survey) => survey.status === 'published'
+const canEditSurvey = (survey) => survey.status === 'draft'
+const canSetDraft = (survey) => survey.status === 'draft'
 
 const getFillUrl = (survey) => {
   if (survey.link) return survey.link
@@ -116,6 +125,10 @@ onMounted(fetchSurveys)
           <input v-model="createForm.allow_anonymous" type="checkbox" class="h-4 w-4" />
           允许匿名提交
         </label>
+        <label class="flex items-center gap-2 text-sm">
+          <input v-model="createForm.allow_multiple_submissions" type="checkbox" class="h-4 w-4" />
+          允许同一人多次填写
+        </label>
         <div>
           <label class="mb-1 block text-sm text-slate-600">截止时间（可选）</label>
           <input v-model="createForm.deadline" type="datetime-local" class="input" />
@@ -147,6 +160,8 @@ onMounted(fetchSurveys)
                 {{ item.status }}
               </span>
               <span class="badge bg-slate-100 text-slate-500">匿名: {{ item.allow_anonymous ? '是' : '否' }}</span>
+              <span class="badge bg-slate-100 text-slate-500">重复填写: {{ item.allow_multiple_submissions === false ? '否' :
+                '是' }}</span>
             </div>
           </div>
           <div class="text-right text-xs text-slate-500">
@@ -156,7 +171,10 @@ onMounted(fetchSurveys)
         </div>
 
         <div class="mt-4 grid gap-2 md:grid-cols-3 lg:grid-cols-6">
-          <button class="btn-secondary" @click="router.push(`/surveys/${item.id}/editor`)">编辑</button>
+          <button class="btn-secondary" :disabled="!canEditSurvey(item)"
+            :title="canEditSurvey(item) ? '编辑问卷' : '仅草稿状态可编辑'" @click="router.push(`/surveys/${item.id}/editor`)">
+            编辑
+          </button>
           <button class="btn-secondary" @click="router.push(`/surveys/${item.id}/stats`)">统计</button>
           <button class="btn-secondary" :disabled="!canOpenFill(item)"
             :title="canOpenFill(item) ? '复制填写链接' : '仅发布状态可填写'" @click="copyFillLink(item)">
@@ -166,8 +184,8 @@ onMounted(fetchSurveys)
             @click="runAction(item.id, 'publish')">发布</button>
           <button class="btn-secondary" :disabled="actionLoadingId === `${item.id}-close`"
             @click="runAction(item.id, 'close')">关闭</button>
-          <button class="btn-secondary" :disabled="actionLoadingId === `${item.id}-draft`"
-            @click="runAction(item.id, 'draft')">草稿</button>
+          <button class="btn-secondary" :disabled="actionLoadingId === `${item.id}-draft` || !canSetDraft(item)"
+            :title="canSetDraft(item) ? '当前已是草稿状态' : '发布和关闭状态不能改回草稿'" @click="runAction(item.id, 'draft')">草稿</button>
         </div>
         <button class="mt-2 text-sm font-semibold text-coral" :disabled="actionLoadingId === `${item.id}-delete`"
           @click="runAction(item.id, 'delete')">删除问卷</button>

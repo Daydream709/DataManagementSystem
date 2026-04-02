@@ -23,7 +23,7 @@ body {
 }
 
 .btn-secondary {
-  @apply rounded-xl border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700 transition hover:border-ocean hover:text-ocean;
+  @apply rounded-xl border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700 transition hover:border-ocean hover:text-ocean disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400;
 }
 
 .badge {

@@ -40,6 +40,7 @@ class SurveyCreateSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=200)
     description = serializers.CharField(required=False, allow_blank=True, allow_null=True, default="")
     allow_anonymous = serializers.BooleanField(default=False)
+    allow_multiple_submissions = serializers.BooleanField(default=True)
     deadline = serializers.DateTimeField(required=False, allow_null=True)
 
 
@@ -47,6 +48,7 @@ class SurveyUpdateSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=200, required=False)
     description = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     allow_anonymous = serializers.BooleanField(required=False)
+    allow_multiple_submissions = serializers.BooleanField(required=False)
     deadline = serializers.DateTimeField(required=False, allow_null=True)
 
 

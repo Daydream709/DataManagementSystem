@@ -36,18 +36,19 @@
 
 ### 字段设计
 
-| 字段            | 类型          | 说明                   |
-| --------------- | ------------- | ---------------------- |
-| \_id            | ObjectId      | 问卷主键               |
-| owner_id        | ObjectId      | 创建者用户ID           |
-| title           | string        | 问卷标题               |
-| description     | string        | 问卷说明               |
-| allow_anonymous | bool          | 是否允许匿名提交       |
-| deadline        | datetime/null | 截止时间               |
-| status          | string        | draft/published/closed |
-| slug            | string        | 问卷访问唯一标识       |
-| created_at      | datetime      | 创建时间               |
-| updated_at      | datetime      | 更新时间               |
+| 字段                       | 类型          | 说明                     |
+| -------------------------- | ------------- | ------------------------ |
+| \_id                       | ObjectId      | 问卷主键                 |
+| owner_id                   | ObjectId      | 创建者用户ID             |
+| title                      | string        | 问卷标题                 |
+| description                | string        | 问卷说明                 |
+| allow_anonymous            | bool          | 是否允许匿名提交         |
+| allow_multiple_submissions | bool          | 是否允许同一用户多次填写 |
+| deadline                   | datetime/null | 截止时间                 |
+| status                     | string        | draft/published/closed   |
+| slug                       | string        | 问卷访问唯一标识         |
+| created_at                 | datetime      | 创建时间                 |
+| updated_at                 | datetime      | 更新时间                 |
 
 ### 索引
 
