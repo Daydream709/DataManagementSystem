@@ -1,8 +1,12 @@
-# 4. API 接口文档
+# 4. API 文档
 
-统一前缀：`/api`
+## 4.1 统一约定
 
-统一响应：
+基础前缀：
+
+/api
+
+统一成功响应：
 
 ```json
 {
@@ -12,14 +16,33 @@
 }
 ```
 
-失败时 `code=1`，`message` 为错误说明。
+统一失败响应：
 
-## 4.1 认证模块
+```json
+{
+  "code": 1,
+  "message": "错误说明",
+  "data": null
+}
+```
 
-### 注册
+鉴权方式：
 
-- `POST /api/auth/register`
-- 请求体：
+Authorization: Bearer <token>
+
+## 4.2 全局业务约束
+
+1. 除注册、登录外，接口默认需要登录。
+2. 填写问卷相关接口需要登录用户身份。
+3. 编辑类接口仅草稿问卷可用。
+4. 发布和关闭状态不能回退为草稿。
+
+## 4.3 认证接口
+
+### 4.3.1 注册
+
+1. 方法与路径：POST /api/auth/register。
+2. 请求体：
 
 ```json
 {
@@ -28,12 +51,12 @@
 }
 ```
 
-- 返回：用户信息 + token
+3. 返回：用户信息与 token。
 
-### 登录
+### 4.3.2 登录
 
-- `POST /api/auth/login`
-- 请求体：
+1. 方法与路径：POST /api/auth/login。
+2. 请求体：
 
 ```json
 {
@@ -42,19 +65,19 @@
 }
 ```
 
-- 返回：用户信息 + token
+3. 返回：用户信息与 token。
 
-## 4.2 问卷模块
+## 4.4 问卷接口
 
-### 获取我的问卷列表
+### 4.4.1 查询我的问卷
 
-- `GET /api/surveys`
-- 鉴权：Bearer Token
+1. GET /api/surveys。
+2. 返回当前用户创建的问卷列表。
 
-### 创建问卷
+### 4.4.2 创建问卷
 
-- `POST /api/surveys`
-- 请求体：
+1. POST /api/surveys。
+2. 请求示例：
 
 ```json
 {
@@ -66,40 +89,39 @@
 }
 ```
 
-### 获取问卷详情
+### 4.4.3 获取问卷详情
 
-- `GET /api/surveys/{survey_id}`
+1. GET /api/surveys/{survey_id}。
 
-### 更新问卷
+### 4.4.4 更新问卷
 
-- `PUT /api/surveys/{survey_id}`
+1. PUT /api/surveys/{survey_id}。
+2. 约束：仅草稿可编辑，非草稿返回错误。
 
-### 删除问卷
+### 4.4.5 删除问卷
 
-- `DELETE /api/surveys/{survey_id}`
+1. DELETE /api/surveys/{survey_id}。
+2. 删除问卷时会级联删除题目、跳转规则和提交记录。
 
-### 发布问卷
+### 4.4.6 状态流转
 
-- `POST /api/surveys/{survey_id}/publish`
+1. 发布：POST /api/surveys/{survey_id}/publish。
+2. 关闭：POST /api/surveys/{survey_id}/close。
+3. 草稿：POST /api/surveys/{survey_id}/draft。
+4. 约束：发布或关闭后不可回退草稿。
 
-### 关闭问卷
+## 4.5 题目接口
 
-- `POST /api/surveys/{survey_id}/close`
+### 4.5.1 查询题目
 
-### 设为草稿
+1. GET /api/surveys/{survey_id}/questions。
 
-- `POST /api/surveys/{survey_id}/draft`
+### 4.5.2 新增题目
 
-## 4.3 题目模块
+1. POST /api/surveys/{survey_id}/questions。
+2. 约束：仅草稿问卷可新增。
 
-### 获取问卷题目
-
-- `GET /api/surveys/{survey_id}/questions`
-
-### 新增题目
-
-- `POST /api/surveys/{survey_id}/questions`
-- 单选示例：
+单选示例：
 
 ```json
 {
@@ -114,7 +136,7 @@
 }
 ```
 
-- 多选示例：
+多选示例：
 
 ```json
 {
@@ -127,11 +149,14 @@
     { "key": "B", "label": "香蕉" },
     { "key": "C", "label": "西瓜" }
   ],
-  "validation": { "min_select": 1, "max_select": 2 }
+  "validation": {
+    "min_select": 1,
+    "max_select": 2
+  }
 }
 ```
 
-- 填空数字示例：
+填空数字示例：
 
 ```json
 {
@@ -139,28 +164,37 @@
   "type": "fill_blank",
   "title": "你的年龄",
   "required": true,
-  "validation": { "value_type": "number", "min_value": 0, "max_value": 120, "is_integer": true }
+  "validation": {
+    "value_type": "number",
+    "min_value": 0,
+    "max_value": 120,
+    "is_integer": true
+  }
 }
 ```
 
-### 更新题目
+### 4.5.3 更新题目
 
-- `PUT /api/questions/{question_id}`
+1. PUT /api/questions/{question_id}。
+2. 约束：仅草稿问卷可更新。
 
-### 删除题目
+### 4.5.4 删除题目
 
-- `DELETE /api/questions/{question_id}`
+1. DELETE /api/questions/{question_id}。
+2. 约束：仅草稿问卷可删除。
 
-## 4.4 跳转规则模块
+## 4.6 跳转规则接口
 
-### 查询问卷跳转规则
+### 4.6.1 查询规则
 
-- `GET /api/surveys/{survey_id}/jump-rules`
+1. GET /api/surveys/{survey_id}/jump-rules。
 
-### 创建跳转规则
+### 4.6.2 创建规则
 
-- `POST /api/surveys/{survey_id}/jump-rules`
-- 示例：
+1. POST /api/surveys/{survey_id}/jump-rules。
+2. 约束：仅草稿问卷可配置。
+
+示例：
 
 ```json
 {
@@ -173,23 +207,23 @@
 }
 ```
 
-### 删除跳转规则
+### 4.6.3 删除规则
 
-- `DELETE /api/jump-rules/{rule_id}`
+1. DELETE /api/jump-rules/{rule_id}。
+2. 约束：仅草稿问卷可删除。
 
-## 4.5 填写问卷模块
+## 4.7 问卷填写接口
 
-### 获取公开问卷
+### 4.7.1 获取可填写问卷
 
-- `GET /api/public/surveys/{slug}`
-- 鉴权：Bearer Token（填写前必须登录）
-- 说明：返回问卷、题目、跳转规则
+1. GET /api/public/surveys/{slug}。
+2. 仅发布状态且未过截止时间可访问。
 
-### 计算下一题（动态跳转）
+### 4.7.2 计算下一题
 
-- `POST /api/public/surveys/{slug}/next-question`
-- 鉴权：Bearer Token（填写前必须登录）
-- 请求体：
+1. POST /api/public/surveys/{slug}/next-question。
+
+请求示例：
 
 ```json
 {
@@ -198,7 +232,7 @@
 }
 ```
 
-- 返回：
+返回示例：
 
 ```json
 {
@@ -211,13 +245,12 @@
 }
 ```
 
-若无下一题：`"next_question": null`
+无下一题时 next_question 为 null。
 
-### 提交问卷
+### 4.7.3 提交问卷
 
-- `POST /api/public/surveys/{slug}/submit`
-- 鉴权：Bearer Token（填写前必须登录）
-- 请求体：
+1. POST /api/public/surveys/{slug}/submit。
+2. 请求示例：
 
 ```json
 {
@@ -230,17 +263,63 @@
 }
 ```
 
-## 4.6 统计模块
+3. 业务校验：
 
-### 整卷统计
+- 必答题不可为空。
+- 答案必须满足题型校验。
+- 答案必须位于本次真实跳转路径中。
+- allow_multiple_submissions=false 时禁止重复提交。
 
-- `GET /api/surveys/{survey_id}/stats`
-- 返回包含：提交总数、每题统计结果
+## 4.8 统计接口
 
-### 单题统计
+### 4.8.1 整卷统计
 
-- `GET /api/questions/{question_id}/stats`
-- 返回包含：
-  - 单选：选项计数 + 回答人数
-  - 多选：选项被选次数
-  - 填空：所有文本/数字列表，数字含平均值
+1. GET /api/surveys/{survey_id}/stats。
+2. 返回提交总数、每题统计、提交用户记录。
+
+整卷统计响应中的 submissions 字段说明：
+
+- submission_id: 提交记录 ID。
+- submitted_at: 提交时间。
+- is_anonymous: 是否匿名提交。
+- respondent_id: 提交用户 ID（仅用于系统内部关联）。
+- respondent_username: 提交用户名；当 is_anonymous=true 时返回 null。
+
+示例：
+
+```json
+{
+  "submission_count": 2,
+  "submissions": [
+    {
+      "submission_id": "6800...",
+      "submitted_at": "2026-04-02T08:23:00+00:00",
+      "is_anonymous": false,
+      "respondent_id": "67ff...",
+      "respondent_username": "alice"
+    },
+    {
+      "submission_id": "6801...",
+      "submitted_at": "2026-04-02T08:25:00+00:00",
+      "is_anonymous": true,
+      "respondent_id": "67aa...",
+      "respondent_username": null
+    }
+  ]
+}
+```
+
+### 4.8.2 单题统计
+
+1. GET /api/questions/{question_id}/stats。
+2. 返回按题型聚合结果：
+
+- 单选：选项计数与作答人数。
+- 多选：选项被选择次数。
+- 填空：值列表，数字题额外返回平均值。
+
+## 4.9 常见错误示例
+
+1. 401：未登录或 token 无效。
+2. 404：问卷、题目、规则不存在。
+3. 400：参数校验失败或业务约束不满足。

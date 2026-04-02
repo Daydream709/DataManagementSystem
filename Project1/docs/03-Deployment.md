@@ -1,100 +1,67 @@
-# 3. 项目运行部署文档
+# 3. 运行、部署与打包说明
 
 ## 3.1 环境要求
 
-- Python 3.10+
-- Node.js 18+
-- MongoDB 6.0+
-- Windows PowerShell（本文示例）
+1. Python 3.10+。
+2. Node.js 18+。
+3. MongoDB 6.0+。
+4. Windows PowerShell（命令示例基于此环境）。
 
-## 3.2 后端部署（Django）
+## 3.2 本地开发部署
 
-### 1) 进入后端目录
+### 3.2.1 启动 MongoDB
+
+确保 MongoDB 服务已运行，默认地址：
+
+mongodb://localhost:27017/
+
+### 3.2.2 启动后端
 
 ```powershell
-cd Project1/backend
-```
-
-### 2) 创建并激活虚拟环境
-
-```powershell
+Set-Location Project1/backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-```
-
-### 3) 安装依赖
-
-```powershell
 pip install -r requirements.txt
-```
-
-### 4) 配置环境变量
-
-```powershell
-copy .env.example .env
-```
-
-根据实际修改 `.env`：
-
-- `MONGODB_URI`
-- `MONGODB_DB_NAME`
-- `JWT_SECRET`
-
-### 5) 启动后端
-
-```powershell
+Copy-Item .env.example .env
 python manage.py runserver 0.0.0.0:8000
 ```
 
-后端地址：`http://localhost:8000`
+后端服务地址：
 
-## 3.3 前端部署（Vue3）
+http://localhost:8000
 
-### 1) 进入前端目录
+后端关键环境变量：
+
+1. MONGODB_URI
+2. MONGODB_DB_NAME
+3. JWT_SECRET
+4. FRONTEND_BASE_URL
+
+### 3.2.3 启动前端
 
 ```powershell
-cd Project1/frontend
-```
-
-### 2) 安装依赖
-
-```powershell
+Set-Location Project1/frontend
 npm install
-```
-
-### 3) 配置环境变量
-
-```powershell
-copy .env.example .env
-```
-
-默认：`VITE_API_BASE_URL=http://localhost:8000/api`
-
-### 4) 启动开发环境
-
-```powershell
+Copy-Item .env.example .env
 npm run dev
 ```
 
-前端地址：`http://localhost:5173`
+前端地址：
 
-### 5) 生产打包
+http://localhost:5173
+
+前端关键环境变量：
+
+1. VITE_API_BASE_URL，默认 http://localhost:8000/api。
+
+## 3.3 前端生产构建
 
 ```powershell
+Set-Location Project1/frontend
 npm run build
 npm run preview
 ```
 
-## 3.4 联调检查
+构建产物目录：
 
-1. 打开前端 `/login` 完成注册登录。
-2. 创建问卷并新增题目。
-3. 配置跳转规则并发布问卷。
-4. 打开填写链接完成提交。
-5. 回到统计页查看数据。
-
-## 3.5 常见问题
-
-- MongoDB 连接失败：检查 `MONGODB_URI` 与服务是否启动。
-- 跨域失败：后端已开启 `CORS_ALLOW_ALL_ORIGINS=True`。
-- Token 鉴权失败：检查请求头 `Authorization: Bearer <token>`。
+frontend/dist

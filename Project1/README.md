@@ -1,10 +1,8 @@
-# 基于 MongoDB 的简化版在线问卷系统（Phase 1）
-
-本项目已按要求完成前后端分离实现：
+# 基于 MongoDB 的简化版在线问卷系统（第一阶段）
 
 - 前端：Vue3 + Vite + TailwindCSS + Pinia + Vue Router
 - 后端：Django + Django REST Framework（业务数据使用 `pymongo` 直连 MongoDB）
-- 数据库：MongoDB（分集合设计：users/surveys/questions/jump_rules/answers）
+- 数据库：MongoDB
 
 ## 目录结构
 
@@ -53,10 +51,10 @@ npm run dev
 
 ## 文档索引
 
-- 架构说明：`docs/01-Architecture.md`
-- MongoDB 设计：`docs/02-MongoDB-Design.md`
-- 部署文档：`docs/03-Deployment.md`
-- API 文档：`docs/04-API.md`
-- 测试用例：`docs/05-TestCases.md`
-- 项目报告模板：`docs/06-ReportTemplate.md`
-- AI 使用日志模板：`docs/07-AI-Usage-Log.md`
+- 架构说明：[docs/01-Architecture.md](docs/01-Architecture.md)
+- MongoDB 设计：[docs/02-MongoDB-Design.md](docs/02-MongoDB-Design.md)
+- 部署文档：[docs/03-Deployment.md](docs/03-Deployment.md)
+- API 文档：[docs/04-API.md](docs/04-API.md)
+- 测试用例：[docs/05-TestCases.md](docs/05-TestCases.md)
+- AI 使用日志模板：[docs/06-AI-Usage-Log.md](docs/06-AI-Usage-Log.md)
+- 项目完成报告：[docs/项目完成报告.md](docs/项目完成报告.md)

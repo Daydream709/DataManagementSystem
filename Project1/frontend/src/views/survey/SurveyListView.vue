@@ -6,7 +6,6 @@ import {
   closeSurveyApi,
   createSurveyApi,
   deleteSurveyApi,
-  draftSurveyApi,
   listSurveysApi,
   publishSurveyApi
 } from '../../api/survey'
@@ -72,7 +71,6 @@ const runAction = async (surveyId, action) => {
   try {
     if (action === 'publish') await publishSurveyApi(surveyId)
     if (action === 'close') await closeSurveyApi(surveyId)
-    if (action === 'draft') await draftSurveyApi(surveyId)
     if (action === 'delete') await deleteSurveyApi(surveyId)
     message.value = '操作成功'
     await fetchSurveys()
@@ -85,7 +83,6 @@ const runAction = async (surveyId, action) => {
 
 const canOpenFill = (survey) => survey.status === 'published'
 const canEditSurvey = (survey) => survey.status === 'draft'
-const canSetDraft = (survey) => survey.status === 'draft'
 
 const getFillUrl = (survey) => {
   if (survey.link) return survey.link
@@ -170,7 +167,7 @@ onMounted(fetchSurveys)
           </div>
         </div>
 
-        <div class="mt-4 grid gap-2 md:grid-cols-3 lg:grid-cols-6">
+        <div class="mt-4 grid gap-2 md:grid-cols-3 lg:grid-cols-5">
           <button class="btn-secondary" :disabled="!canEditSurvey(item)"
             :title="canEditSurvey(item) ? '编辑问卷' : '仅草稿状态可编辑'" @click="router.push(`/surveys/${item.id}/editor`)">
             编辑
@@ -184,8 +181,6 @@ onMounted(fetchSurveys)
             @click="runAction(item.id, 'publish')">发布</button>
           <button class="btn-secondary" :disabled="actionLoadingId === `${item.id}-close`"
             @click="runAction(item.id, 'close')">关闭</button>
-          <button class="btn-secondary" :disabled="actionLoadingId === `${item.id}-draft` || !canSetDraft(item)"
-            :title="canSetDraft(item) ? '当前已是草稿状态' : '发布和关闭状态不能改回草稿'" @click="runAction(item.id, 'draft')">草稿</button>
         </div>
         <button class="mt-2 text-sm font-semibold text-coral" :disabled="actionLoadingId === `${item.id}-delete`"
           @click="runAction(item.id, 'delete')">删除问卷</button>

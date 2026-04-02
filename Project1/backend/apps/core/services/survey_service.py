@@ -693,20 +693,58 @@ def _stats_for_question(question: dict[str, Any], submissions: list[dict[str, An
     return base
 
 
+def _serialize_submission_summary(
+    submission: dict[str, Any],
+    username_map: dict[str, str],
+) -> dict[str, Any]:
+    respondent_oid = submission.get("respondent_id")
+    respondent_id = str(respondent_oid) if respondent_oid else None
+    is_anonymous = bool(submission.get("is_anonymous", False))
+    respondent_username = None
+    if not is_anonymous and respondent_id:
+        respondent_username = username_map.get(respondent_id)
+
+    submitted_at = submission.get("submitted_at")
+    submitted_at_text = submitted_at.isoformat() if isinstance(submitted_at, datetime) else str(submitted_at)
+
+    return {
+        "submission_id": str(submission.get("_id")),
+        "submitted_at": submitted_at_text,
+        "is_anonymous": is_anonymous,
+        "respondent_id": respondent_id,
+        "respondent_username": respondent_username,
+    }
+
+
 def get_survey_stats(owner_id: str, survey_id: str) -> dict[str, Any]:
     survey = _get_owned_survey(owner_id, survey_id)
     questions_col = get_collection("questions")
     answers_col = get_collection("answers")
+    users_col = get_collection("users")
 
     question_docs = list(questions_col.find({"survey_id": survey["_id"]}).sort("order", 1))
-    submissions = list(answers_col.find({"survey_id": survey["_id"]}))
+    submissions = list(answers_col.find({"survey_id": survey["_id"]}).sort("submitted_at", -1))
+
+    visible_respondent_ids = {
+        sub["respondent_id"]
+        for sub in submissions
+        if not sub.get("is_anonymous") and sub.get("respondent_id")
+    }
+    username_map: dict[str, str] = {}
+    if visible_respondent_ids:
+        user_docs = users_col.find({"_id": {"$in": list(visible_respondent_ids)}})
+        username_map = {str(user["_id"]): user.get("username", "") for user in user_docs}
 
     question_stats = [_stats_for_question(question, submissions) for question in question_docs]
+    submission_summaries = [
+        _serialize_submission_summary(submission, username_map) for submission in submissions
+    ]
 
     return {
         "survey": _survey_to_response(survey),
         "submission_count": len(submissions),
         "questions": question_stats,
+        "submissions": submission_summaries,
     }
 
 

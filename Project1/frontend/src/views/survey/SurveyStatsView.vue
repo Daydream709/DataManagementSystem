@@ -30,6 +30,11 @@ const selectedQuestionSummary = computed(() => {
   }
 })
 
+const submissionEntries = computed(() => {
+  if (!surveyStats.value?.submissions) return []
+  return surveyStats.value.submissions
+})
+
 const getPercentage = (count, total) => {
   if (!total) return 0
   return Math.round((Number(count || 0) / total) * 100)
@@ -76,11 +81,32 @@ onMounted(loadStats)
       </div>
 
       <div class="card">
+        <h3 class="font-display text-lg font-bold">填写用户记录</h3>
+        <p class="mt-1 text-xs text-slate-500">匿名提交不会展示用户名。</p>
+
+        <div v-if="submissionEntries.length === 0" class="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-500">
+          暂无提交记录
+        </div>
+
+        <div v-else class="mt-3 space-y-2">
+          <div v-for="item in submissionEntries" :key="item.submission_id"
+            class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+            <div class="font-medium text-ink">
+              {{ item.is_anonymous ? '匿名提交' : (item.respondent_username || '未知用户') }}
+            </div>
+            <div class="text-xs text-slate-500">
+              {{ new Date(item.submitted_at).toLocaleString() }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
         <h3 class="font-display text-lg font-bold">单题统计</h3>
         <select v-model="selectedQuestionId" class="input mt-3" @change="loadSingleQuestionStats">
           <option value="">请选择题目</option>
           <option v-for="item in surveyStats.questions" :key="item.question_id" :value="item.question_id">{{ item.title
-            }}</option>
+          }}</option>
         </select>
 
         <div v-if="selectedQuestionSummary" class="mt-4 space-y-3">
