@@ -8,10 +8,44 @@
 
 ```text
 Project1/
-  backend/                 # Django + DRF API
-  frontend/                # Vue3 + Vite 前端
-  docs/                    # 数据库/API/测试/部署/报告文档
-  README.md
+├─ backend/
+│  ├─ apps/
+│  │  └─ core/
+│  │     ├─ authentication.py        # JWT 认证
+│  │     ├─ mongodb.py               # MongoDB 连接与集合访问
+│  │     ├─ serializers.py           # 请求参数与数据校验
+│  │     ├─ views.py                 # API 入口
+│  │     └─ services/
+│  │        ├─ auth_service.py       # 注册登录业务
+│  │        └─ survey_service.py     # 问卷、跳转、提交、统计核心逻辑
+│  ├─ questionnaire/                 # Django 项目配置
+│  ├─ tests/
+│  │  └─ run_api_test_suite.py       # 自动化 API 回归脚本
+│  ├─ manage.py
+│  └─ requirements.txt
+├─ frontend/
+│  ├─ src/
+│  │  ├─ api/
+│  │  │  ├─ http.js                  # Axios 封装
+│  │  │  ├─ auth.js                  # 认证接口
+│  │  │  └─ survey.js                # 问卷相关接口
+│  │  ├─ views/
+│  │  │  ├─ auth/                    # 登录/注册页面
+│  │  │  └─ survey/                  # 列表、编辑、填写、统计页面
+│  │  ├─ router/
+│  │  ├─ stores/
+│  │  └─ components/
+│  ├─ package.json
+│  └─ vite.config.js
+├─ docs/                             # 作业交付文档
+│  ├─ 01-Architecture.md
+│  ├─ 02-MongoDB-Design.md
+│  ├─ 03-Deployment.md
+│  ├─ 04-API.md
+│  ├─ 05-TestCases.md
+│  ├─ 06-AI-Usage-Log.md
+│  └─ 项目完成报告.md
+└─ README.md
 ```
 
 ## 快速开始
