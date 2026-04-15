@@ -11,7 +11,6 @@ import {
   listQuestionBankApi,
   listSharedBankApi,
   restoreBankVersionApi,
-  setBankPublicApi,
   shareBankItemApi
 } from '../../api/survey'
 
@@ -206,22 +205,6 @@ const submitShare = async () => {
   }
 }
 
-const togglePublic = async (item) => {
-  loading.value = true
-  message.value = ''
-  errorMessage.value = ''
-  try {
-    const next = !item.is_public
-    await setBankPublicApi(item.id, next)
-    message.value = next ? '已设为公开，其他用户可在「共享题目」中看到此题' : '已设为私有'
-    await fetchCurrentTab()
-  } catch (error) {
-    errorMessage.value = error.message
-  } finally {
-    loading.value = false
-  }
-}
-
 const submitNewVersion = async () => {
   loading.value = true
   message.value = ''
@@ -300,7 +283,6 @@ onMounted(() => {
               <p class="text-xs text-slate-500">
                 {{ typeLabel(item.type) }} · {{ summarizeOptions(item) }}
                 <span class="ml-1 rounded bg-ocean/10 px-1.5 py-0.5 text-ocean">v{{ item.version }}</span>
-                <span v-if="item.is_public" class="ml-1 rounded bg-green-100 px-1.5 py-0.5 text-green-700">公开</span>
               </p>
             </div>
             <button class="btn-primary shrink-0 text-xs" :disabled="loading" @click="importItem(item)">导入</button>
@@ -309,9 +291,6 @@ onMounted(() => {
             <button class="rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-600 hover:bg-slate-200" @click="showNewVersion(item)">新版本</button>
             <button class="rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-600 hover:bg-slate-200" @click="showVersions(item)">历史</button>
             <button class="rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-600 hover:bg-slate-200" @click="showShare(item)">共享</button>
-            <button class="rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-600 hover:bg-slate-200" @click="togglePublic(item)">
-              {{ item.is_public ? '设为私有' : '设为公开' }}
-            </button>
             <button class="rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-600 hover:bg-slate-200" @click="showUsage(item)">使用情况</button>
             <button class="rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-600 hover:bg-slate-200" @click="showCrossStats(item)">跨问卷统计</button>
             <button class="rounded-lg bg-coral/10 px-2 py-1 text-xs text-coral hover:bg-coral/20" @click="removeItem(item.id)">删除</button>
@@ -323,7 +302,7 @@ onMounted(() => {
       <!-- Shared tab (includes shared + public items) -->
       <template v-if="activeTab === 'shared'">
         <div v-if="sharedItems.length === 0" class="py-4 text-center text-sm text-slate-400">
-          暂无他人共享或公开的题目。
+          暂无他人共享的题目。
         </div>
         <div v-for="item in sharedItems" :key="item.id" class="rounded-xl border border-slate-200 p-3">
           <div class="flex items-start justify-between gap-2">
@@ -332,8 +311,6 @@ onMounted(() => {
               <p class="text-xs text-slate-500">
                 {{ typeLabel(item.type) }} · {{ summarizeOptions(item) }} · v{{ item.version }}
                 <span class="ml-1 text-slate-400">来自 {{ item.owner_username }}</span>
-                <span v-if="item.source === 'public'" class="ml-1 rounded bg-green-100 px-1.5 py-0.5 text-green-700">公开</span>
-                <span v-else class="ml-1 rounded bg-purple-100 px-1.5 py-0.5 text-purple-700">共享</span>
               </p>
             </div>
             <button class="btn-primary shrink-0 text-xs" :disabled="loading" @click="importItem(item)">导入</button>
@@ -387,12 +364,6 @@ onMounted(() => {
         <div class="flex gap-2">
           <button class="btn-primary text-xs" :disabled="loading" @click="submitShare">确认共享</button>
           <button class="btn-secondary text-xs" @click="closeDetail">取消</button>
-        </div>
-        <div class="mt-3 border-t border-slate-200 pt-3">
-          <p class="text-xs text-slate-500">或者将题目设为公开，所有用户都可在「共享题目」中看到。</p>
-          <button class="btn-secondary mt-2 text-xs" :disabled="loading" @click="togglePublic(detailItem)">
-            {{ detailItem?.is_public ? '取消公开（设为私有）' : '设为公开' }}
-          </button>
         </div>
       </div>
 

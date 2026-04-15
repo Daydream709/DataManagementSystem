@@ -340,7 +340,6 @@ Authorization: Bearer <token>
     { "key": "C", "label": "大三" },
     { "key": "D", "label": "大四" }
   ],
-  "is_public": false,
   "version_note": "初始版本"
 }
 ```
@@ -367,19 +366,14 @@ Authorization: Bearer <token>
 }
 ```
 
-4. 支持导入自己题库、他人共享、或公开题目。导入时记录 bank_item_id、bank_chain_id、bank_version 到 questions 文档。
+4. 支持导入自己题库或他人共享题目。导入时记录 bank_item_id、bank_chain_id、bank_version 到 questions 文档。
 
 ### 4.9.5 查看共享给我的题目
 
 1. GET /api/question-bank/shared。
 2. 返回其他用户共享给当前用户的题目（最新版本）。
 
-### 4.9.6 查看公开题目
-
-1. GET /api/question-bank/public。
-2. 返回所有公开题目（排除自己的，最新版本）。
-
-### 4.9.7 版本管理
+### 4.9.6 版本管理
 
 1. 查看版本历史：GET /api/question-bank/{item_id}/versions。
 2. 创建新版本：POST /api/question-bank/{item_id}/new-version。
@@ -403,7 +397,7 @@ Authorization: Bearer <token>
 }
 ```
 
-### 4.9.8 共享管理
+### 4.9.7 共享管理
 
 1. 共享给指定用户：POST /api/question-bank/{item_id}/share。
 
@@ -413,20 +407,12 @@ Authorization: Bearer <token>
 }
 ```
 
-2. 设置公开/私有：POST /api/question-bank/{item_id}/public。
-
-```json
-{
-  "is_public": true
-}
-```
-
-### 4.9.9 使用情况
+### 4.9.8 使用情况
 
 1. GET /api/question-bank/{item_id}/usage。
 2. 返回使用该题目（任何版本）的问卷列表。
 
-### 4.9.10 跨问卷统计
+### 4.9.9 跨问卷统计
 
 1. GET /api/question-bank/{item_id}/cross-stats。
 2. 返回该题目在所有问卷中的聚合统计结果，包括涉及问卷数、总回答数、按题型聚合统计。

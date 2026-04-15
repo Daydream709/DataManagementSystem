@@ -21,7 +21,7 @@
 | questions     | 题目与校验规则               | survey_id + order 顺序读取                     |
 | jump_rules    | 跳转规则                     | survey_id + question_id 按 priority 匹配       |
 | answers       | 提交结果                     | survey_id 统计、survey_id + respondent_id 判重 |
-| question_bank | 【第二阶段新增】常用题目题库 | owner_id 列表查询、版本链管理、共享与公开查询  |
+| question_bank | 【第二阶段新增】常用题目题库 | owner_id 列表查询、版本链管理、共享查询  |
 
 ## 2.4 结构关系
 
@@ -160,7 +160,6 @@ validation 示例：
 | version      | int           | 版本号，从 1 递增                     |
 | version_note | string        | 版本说明                              |
 | shared_with  | array         | 共享目标用户 ID 列表                  |
-| is_public    | bool          | 是否公开（所有登录用户可见）          |
 | is_latest    | bool          | 是否为版本链中的最新版本              |
 | created_at   | datetime      | 创建时间                              |
 | updated_at   | datetime      | 更新时间                              |
@@ -169,14 +168,13 @@ validation 示例：
 
 1. v1: chain_id = v1.\_id, parent_id = null, version = 1, is_latest = true。
 2. 创建 v2: v1.is_latest 设为 false; v2: chain_id = v1.\_id, parent_id = v1.\_id, version = 2, is_latest = true。
-3. 恢复 v1: 创建 v3，内容同 v1，chain_id = v1.\_id, parent_id = v2.\_id, version = 3。
+3. 恢复 v1: 将 v2.is_latest 设为 false，v1.is_latest 设为 true，不创建新版本。
 
 索引：
 
 1. idx_qbank_owner_latest_created: { owner_id: 1, is_latest: 1, created_at: 1 }。
 2. idx_qbank_chain_version: { chain_id: 1, version: 1 }。
 3. idx_qbank_shared_latest: { shared_with: 1, is_latest: 1 }。
-4. idx_qbank_public_latest_created: { is_public: 1, is_latest: 1, created_at: 1 }。
 
 ## 2.6 核心查询与索引匹配
 
@@ -189,5 +187,4 @@ validation 示例：
 7. 【第二阶段新增】题库列表（最新版本）：question_bank.find({owner_id, is_latest:true}).sort(created_at) -> idx_qbank_owner_latest_created。
 8. 【第二阶段新增】题库版本链：question_bank.find({chain_id}).sort(version) -> idx_qbank_chain_version。
 9. 【第二阶段新增】共享给我的题目：question_bank.find({shared_with, is_latest:true}) -> idx_qbank_shared_latest。
-10. 【第二阶段新增】公开题目：question_bank.find({is_public:true, is_latest:true}).sort(created_at) -> idx_qbank_public_latest_created。
-11. 【第二阶段新增】跨问卷统计：questions.find({bank_chain_id}) -> idx_question_bank_chain。
+10. 【第二阶段新增】跨问卷统计：questions.find({bank_chain_id}) -> idx_question_bank_chain。

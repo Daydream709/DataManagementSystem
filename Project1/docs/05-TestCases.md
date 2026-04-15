@@ -28,10 +28,9 @@
 12. 从题库导入到问卷。
 13. 题库版本管理。
 14. 题目共享。
-15. 题目公开与公共题库。
-16. 题库使用情况查询。
-17. 跨问卷统计。
-18. 已发布问卷不受题库修改影响。
+15. 题库使用情况查询。
+16. 跨问卷统计。
+17. 已发布问卷不受题库修改影响。
 
 ## 5.2 测试环境
 
@@ -82,10 +81,9 @@
 | TC-12  | 【第二阶段】从题库导入到问卷    | 题库复用           |
 | TC-13  | 【第二阶段】题库版本管理        | 版本链             |
 | TC-14  | 【第二阶段】题目共享            | 共享               |
-| TC-15  | 【第二阶段】题目公开与公共题库  | 公开               |
-| TC-16  | 【第二阶段】题库使用情况查询    | 使用追踪           |
-| TC-17  | 【第二阶段】跨问卷统计          | 跨问卷统计         |
-| TC-18  | 【第二阶段】已发布问卷不受影响  | 版本隔离           |
+| TC-15  | 【第二阶段】题库使用情况查询    | 使用追踪           |
+| TC-16  | 【第二阶段】跨问卷统计          | 跨问卷统计         |
+| TC-17  | 【第二阶段】已发布问卷不受影响  | 版本隔离           |
 
 ## 5.5 自动化 API 测试脚本
 
@@ -102,7 +100,7 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 
 脚本覆盖范围:
 
-1. TC-01 到 TC-18 全部覆盖。
+1. TC-01 到 TC-17 全部覆盖。
 2. 自动创建测试用户与测试问卷。
 3. 自动执行并输出 PASS/FAIL。
 4. 每一步打印 API 方法、路径、请求体和服务器实际响应（状态码与响应体）。
@@ -118,7 +116,7 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 
 1. 执行时间: 2026-04-14（本地环境）
 2. 执行命令: python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
-3. 输出摘要: 全部用例执行完成，覆盖 TC-01 到 TC-18，并完成清理测试问卷。
+3. 输出摘要: 全部用例执行完成，覆盖 TC-01 到 TC-17，并完成清理测试问卷。
 4. 通过数: 108
 5. 失败数: 0
 6. 结论: 通过
@@ -997,7 +995,6 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
     { "key": "C", "label": "大三" },
     { "key": "D", "label": "大四" }
   ],
-  "is_public": false,
   "version_note": "初始版本"
 }
 ```
@@ -1093,7 +1090,7 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 
 1. 新版本创建成功，版本号 v2。
 2. 版本历史列表显示 v1 和 v2。
-3. 恢复后创建 v3，内容与 v1 一致，版本号 v3。
+3. 恢复后 v1 重新成为最新版本（is_latest 切换，不创建新版本）。
 
 #### B. API测试方法
 
@@ -1149,7 +1146,7 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 
 1. 新版本创建成功: HTTP 201, code=0, data.version=2。
 2. 版本历史返回 2 条记录，按 version 升序。
-3. 恢复成功: HTTP 200, code=0, data.version=3, data.title="你的年级"。
+3. 恢复成功: HTTP 200, code=0, data.version=1, data.title="你的年级", data.is_latest=true。
 
 ### TC-14 【第二阶段】题目共享
 
@@ -1234,91 +1231,7 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 2. 共享列表返回 1 条记录，owner_username 为用户A。
 3. 导入成功: HTTP 201, code=0。
 
-### TC-15 【第二阶段】题目公开与公共题库
-
-#### A. 手动测试方法
-
-前置条件:
-
-1. TC-11 已通过。
-
-步骤:
-
-1. 在「我的题库」面板中点击题目的「设为公开」按钮。
-2. 用户E登录后进入问卷编辑页。
-3. 切换到「公共题库」标签，确认看到公开的题目。
-4. 点击「导入」确认可以使用。
-5. 用户A点击「设为私有」。
-
-预期输出:
-
-1. 设为公开成功。
-2. 用户E在公共题库中看到该题目。
-3. 设为私有后，用户E不再看到该题目。
-
-#### B. API测试方法
-
-步骤:
-
-1. POST /api/question-bank/{item_id}/public 设为公开。
-2. 使用用户E token 调用 GET /api/question-bank/public 查看公开列表。
-3. POST /api/question-bank/{item_id}/public 设回私有。
-4. 再次查看公开列表确认已移除。
-
-每一步输入:
-
-1. 步骤1 输入:
-
-- 方法与路径: POST /api/question-bank/{item_id}/public
-- 路径参数: item_id=TC-11 返回的题库条目 ID
-- Header:
-  - Content-Type: application/json
-  - Authorization: Bearer <owner_token>
-
-- Body:
-
-```json
-{
-  "is_public": true
-}
-```
-
-2. 步骤2 输入:
-
-- 方法与路径: GET /api/question-bank/public
-- Header: Authorization: Bearer <sharee_token>
-- Body: 无
-
-3. 步骤3 输入:
-
-- 方法与路径: POST /api/question-bank/{item_id}/public
-- 路径参数: item_id=TC-11 返回的题库条目 ID
-- Header:
-  - Content-Type: application/json
-  - Authorization: Bearer <owner_token>
-
-- Body:
-
-```json
-{
-  "is_public": false
-}
-```
-
-4. 步骤4 输入:
-
-- 方法与路径: GET /api/question-bank/public
-- Header: Authorization: Bearer <sharee_token>
-- Body: 无
-
-预期输出:
-
-1. 设为公开成功: HTTP 200, code=0, data.is_public=true。
-2. 公开列表返回该题目（owner_username 为用户A）。
-3. 设为私有成功: HTTP 200, code=0, data.is_public=false。
-4. 公开列表不再包含该题目。
-
-### TC-16 【第二阶段】题库使用情况查询
+### TC-15 【第二阶段】题库使用情况查询
 
 #### A. 手动测试方法
 
@@ -1356,7 +1269,7 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 2. data 为数组，至少包含一条记录。
 3. 每条记录包含 survey_id、survey_title、survey_status、question_id、question_order、bank_version。
 
-### TC-17 【第二阶段】跨问卷统计
+### TC-16 【第二阶段】跨问卷统计
 
 #### A. 手动测试方法
 
@@ -1398,7 +1311,7 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 3. data.stats 包含按题型聚合的统计结果。
 4. data.stats.total_answered >= 0。
 
-### TC-18 【第二阶段】已发布问卷不受题库修改影响
+### TC-17 【第二阶段】已发布问卷不受题库修改影响
 
 #### A. 手动测试方法
 

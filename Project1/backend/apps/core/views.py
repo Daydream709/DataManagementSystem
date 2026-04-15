@@ -9,7 +9,6 @@ from .serializers import (
     QuestionBankCreateSerializer,
     QuestionBankImportSerializer,
     QuestionBankNewVersionSerializer,
-    QuestionBankPublicSerializer,
     QuestionBankRestoreSerializer,
     QuestionBankShareSerializer,
     QuestionCreateSerializer,
@@ -41,13 +40,11 @@ from .services.survey_service import (
     import_question_from_bank,
     list_bank_versions,
     list_jump_rules,
-    list_public_bank_items,
     list_question_bank,
     list_questions,
     list_shared_bank_items,
     list_surveys,
     restore_bank_version,
-    set_bank_item_public,
     share_bank_item,
     submit_survey,
     update_question,
@@ -279,23 +276,9 @@ class QuestionBankShareView(APIView):
         return ok(data=data, message="共享成功")
 
 
-class QuestionBankPublicView(APIView):
-    def post(self, request, item_id: str):
-        serializer = QuestionBankPublicSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = set_bank_item_public(request.user.id, item_id, serializer.validated_data["is_public"])
-        return ok(data=data)
-
-
 class QuestionBankSharedView(APIView):
     def get(self, request):
         data = list_shared_bank_items(request.user.id)
-        return ok(data=data)
-
-
-class QuestionBankPublicListView(APIView):
-    def get(self, request):
-        data = list_public_bank_items(request.user.id)
         return ok(data=data)
 
 

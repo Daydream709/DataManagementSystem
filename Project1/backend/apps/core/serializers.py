@@ -183,7 +183,6 @@ class QuestionBankCreateSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=300)
     options = OptionSerializer(many=True, required=False)
     validation = serializers.DictField(required=False)
-    is_public = serializers.BooleanField(required=False, default=False)
     version_note = serializers.CharField(max_length=500, required=False, allow_blank=True)
 
     def validate(self, attrs):
@@ -226,7 +225,3 @@ class QuestionBankShareSerializer(serializers.Serializer):
 
 class QuestionBankRestoreSerializer(serializers.Serializer):
     version_item_id = serializers.CharField()
-
-
-class QuestionBankPublicSerializer(serializers.Serializer):
-    is_public = serializers.BooleanField()

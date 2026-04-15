@@ -542,7 +542,6 @@ class TestRunner:
                 {"key": "C", "label": "大三"},
                 {"key": "D", "label": "大四"},
             ],
-            "is_public": False,
             "version_note": "初始版本",
         }
         save_res = self.client.request("POST", "/question-bank", payload=payload, token=self.owner_token)
@@ -630,8 +629,9 @@ class TestRunner:
         restore_data: dict[str, Any] = {}
         if isinstance(restore_res.body, dict):
             restore_data = restore_res.body.get("data") or {}
-        self.check(restore_data.get("version") == 3, "恢复后版本号为 3")
+        self.check(restore_data.get("version") == 1, "恢复后版本号为 1（版本切换，不创建新版本）")
         self.check(restore_data.get("title") == "你的年级", "恢复后标题与 v1 一致")
+        self.check(restore_data.get("is_latest") is True, "恢复后 v1 is_latest=true")
 
     def tc_14_bank_share(self) -> None:
         share_res = self.client.request(
@@ -665,39 +665,6 @@ class TestRunner:
             token=self.sharee_token,
         )
         self.check_success(import_res, "用户E导入共享题目成功", expected_status=201)
-
-    def tc_15_bank_public(self) -> None:
-        public_res = self.client.request(
-            "POST",
-            f"/question-bank/{self.bank_item_id}/public",
-            payload={"is_public": True},
-            token=self.owner_token,
-        )
-        self.check_success(public_res, "设为公开成功")
-
-        public_list_res = self.client.request("GET", "/question-bank/public", token=self.sharee_token)
-        self.check_success(public_list_res, "查询公共题库成功")
-        public_items: list[Any] = []
-        if isinstance(public_list_res.body, dict):
-            public_items = public_list_res.body.get("data") or []
-        found = any(item.get("title") == "你的年级" for item in public_items)
-        self.check(found, "公共题库中包含公开题目")
-
-        private_res = self.client.request(
-            "POST",
-            f"/question-bank/{self.bank_item_id}/public",
-            payload={"is_public": False},
-            token=self.owner_token,
-        )
-        self.check_success(private_res, "设为私有成功")
-
-        public_list_res2 = self.client.request("GET", "/question-bank/public", token=self.sharee_token)
-        self.check_success(public_list_res2, "再次查询公共题库成功")
-        public_items2: list[Any] = []
-        if isinstance(public_list_res2.body, dict):
-            public_items2 = public_list_res2.body.get("data") or []
-        gone = not any(item.get("id") == self.bank_item_id for item in public_items2)
-        self.check(gone, "设为私有后公共题库不再包含该题目")
 
     def tc_16_bank_usage(self) -> None:
         usage_res = self.client.request(
@@ -789,7 +756,6 @@ class TestRunner:
         self.run_case("TC-12", "【第二阶段】从题库导入到问卷", self.tc_12_bank_import_to_survey)
         self.run_case("TC-13", "【第二阶段】题库版本管理", self.tc_13_bank_version_management)
         self.run_case("TC-14", "【第二阶段】题目共享", self.tc_14_bank_share)
-        self.run_case("TC-15", "【第二阶段】题目公开与公共题库", self.tc_15_bank_public)
         self.run_case("TC-16", "【第二阶段】题库使用情况查询", self.tc_16_bank_usage)
         self.run_case("TC-17", "【第二阶段】跨问卷统计", self.tc_17_bank_cross_stats)
         self.run_case("TC-18", "【第二阶段】已发布问卷不受影响", self.tc_18_bank_version_isolation)

@@ -775,7 +775,6 @@ def _find_accessible_bank_item(owner_oid: ObjectId, item_id: str) -> dict[str, A
         "$or": [
             {"owner_id": owner_oid},
             {"shared_with": owner_oid},
-            {"is_public": True},
         ],
     })
     if not item:
@@ -811,7 +810,6 @@ def create_question_bank_item(owner_id: str, payload: dict[str, Any]) -> dict[st
         "version": 1,
         "version_note": payload.get("version_note", ""),
         "shared_with": [],
-        "is_public": bool(payload.get("is_public", False)),
         "is_latest": True,
         "created_at": now,
         "updated_at": now,
@@ -914,7 +912,6 @@ def create_new_bank_version(owner_id: str, item_id: str, payload: dict[str, Any]
         "version": new_version,
         "version_note": payload.get("version_note", ""),
         "shared_with": current.get("shared_with", []),
-        "is_public": current.get("is_public", False),
         "is_latest": True,
         "created_at": now,
         "updated_at": now,
@@ -947,17 +944,27 @@ def restore_bank_version(owner_id: str, item_id: str, target_version_item_id: st
     if not current:
         raise NotFound("题库题目不存在")
 
-    target = bank.find_one({"_id": target_oid, "chain_id": current["chain_id"]})
+    target = bank.find_one({"_id": target_oid, "chain_id": current["chain_id"], "owner_id": owner_oid})
     if not target:
         raise NotFound("目标版本不存在")
 
-    return create_new_bank_version(owner_id, oid, {
-        "type": target["type"],
-        "title": target["title"],
-        "options": target.get("options", []),
-        "validation": target.get("validation", {}),
-        "version_note": f"恢复到版本 {target['version']}",
-    })
+    if target.get("is_latest"):
+        return _qbank_to_response(target)
+
+    # Switch is_latest: old latest → false, target → true
+    bank.update_many(
+        {"chain_id": current["chain_id"], "owner_id": owner_oid, "is_latest": True},
+        {"$set": {"is_latest": False}},
+    )
+    bank.update_one(
+        {"_id": target_oid},
+        {"$set": {"is_latest": True, "updated_at": _now()}},
+    )
+
+    updated = bank.find_one({"_id": target_oid})
+    if not updated:
+        raise NotFound("版本切换后未找到目标版本")
+    return _qbank_to_response(updated)
 
 
 # ── 共享 ──
@@ -996,22 +1003,6 @@ def share_bank_item(owner_id: str, item_id: str, usernames: list[str]) -> dict[s
     return {"shared_with_count": len(shared_user_ids), "chain_id": str(chain_id)}
 
 
-def set_bank_item_public(owner_id: str, item_id: str, is_public: bool) -> dict[str, Any]:
-    bank = get_collection("question_bank")
-    owner_oid = to_object_id(owner_id, "owner_id")
-    oid = to_object_id(item_id, "item_id")
-
-    item = bank.find_one({"_id": oid, "owner_id": owner_oid})
-    if not item:
-        raise NotFound("题库题目不存在")
-
-    bank.update_many(
-        {"chain_id": item["chain_id"], "owner_id": owner_oid},
-        {"$set": {"is_public": bool(is_public)}},
-    )
-    return {"is_public": bool(is_public), "chain_id": str(item["chain_id"])}
-
-
 def list_shared_bank_items(owner_id: str) -> list[dict[str, Any]]:
     bank = get_collection("question_bank")
     users = get_collection("users")
@@ -1020,30 +1011,7 @@ def list_shared_bank_items(owner_id: str) -> list[dict[str, Any]]:
     docs = bank.find({
         "is_latest": True,
         "owner_id": {"$ne": owner_oid},
-        "$or": [
-            {"shared_with": owner_oid},
-            {"is_public": True},
-        ],
-    }).sort("created_at", -1)
-    result: list[dict[str, Any]] = []
-    for doc in docs:
-        item = _qbank_to_response(doc)
-        owner = users.find_one({"_id": doc["owner_id"]})
-        item["owner_username"] = owner.get("username", "") if owner else ""
-        item["source"] = "public" if doc.get("is_public") else "shared"
-        result.append(item)
-    return result
-
-
-def list_public_bank_items(owner_id: str) -> list[dict[str, Any]]:
-    bank = get_collection("question_bank")
-    users = get_collection("users")
-    owner_oid = to_object_id(owner_id, "owner_id")
-
-    docs = bank.find({
-        "is_public": True,
-        "is_latest": True,
-        "owner_id": {"$ne": owner_oid},
+        "shared_with": owner_oid,
     }).sort("created_at", -1)
     result: list[dict[str, Any]] = []
     for doc in docs:

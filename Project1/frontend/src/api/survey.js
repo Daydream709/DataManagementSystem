@@ -41,11 +41,8 @@ export const restoreBankVersionApi = (itemId, versionItemId) =>
 
 // Question Bank - Sharing
 export const listSharedBankApi = () => http.get("/question-bank/shared");
-export const listPublicBankApi = () => http.get("/question-bank/public");
 export const shareBankItemApi = (itemId, usernames) =>
   http.post(`/question-bank/${itemId}/share`, { usernames });
-export const setBankPublicApi = (itemId, isPublic) =>
-  http.post(`/question-bank/${itemId}/public`, { is_public: isPublic });
 
 // Question Bank - Usage & Stats
 export const getBankUsageApi = (itemId) => http.get(`/question-bank/${itemId}/usage`);
