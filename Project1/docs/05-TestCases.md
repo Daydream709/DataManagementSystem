@@ -2,12 +2,14 @@
 
 ## 5.1 覆盖目标
 
-本测试文档完整覆盖课程作业第一阶段要求功能，并为每项测试提供两套方法：
+本测试文档完整覆盖课程作业第一阶段与第二阶段要求功能，并为每项测试提供两套方法：
 
 1. 手动测试方法。
 2. API测试方法。
 
 覆盖项：
+
+第一阶段（TC-01 ~ TC-10）：
 
 1. 用户注册与登录测试。
 2. 创建问卷测试。
@@ -19,6 +21,17 @@
 8. 非草稿编辑拦截。
 9. 发布/关闭不可回草稿。
 10. 统计用户名可见性（匿名隐藏）。
+
+第二阶段新增（TC-11 ~ TC-18）：
+
+11. 题库保存与列表。
+12. 从题库导入到问卷。
+13. 题库版本管理。
+14. 题目共享。
+15. 题目公开与公共题库。
+16. 题库使用情况查询。
+17. 跨问卷统计。
+18. 已发布问卷不受题库修改影响。
 
 ## 5.2 测试环境
 
@@ -34,7 +47,8 @@
 2. 用户B(实名填写者): user1_xxx
 3. 用户C(匿名填写者): user2_xxx
 4. 用户D(鉴权测试账号): auth_xxx
-5. 问卷配置:
+5. 【第二阶段新增】用户E(共享接收者): sharee_xxx
+6. 问卷配置:
 
 - allow_anonymous = true
 - allow_multiple_submissions = false
@@ -52,18 +66,26 @@
 
 ## 5.4 用例矩阵
 
-| 用例ID | 用例名称         | 作业要求覆盖 |
-| ------ | ---------------- | ------------ |
-| TC-01  | 用户注册与登录   | 回归与约束   |
-| TC-02  | 创建问卷         | 创建问卷     |
-| TC-03  | 添加题目         | 添加题目     |
-| TC-04  | 跳转逻辑         | 跳转逻辑     |
-| TC-05  | 校验拦截         | 校验测试     |
-| TC-06  | 提交问卷         | 提交测试     |
-| TC-07  | 统计结果         | 统计测试     |
-| TC-08  | 非草稿编辑拦截   | 回归与约束   |
-| TC-09  | 状态不可回草稿   | 回归与约束   |
-| TC-10  | 统计用户名可见性 | 回归与约束   |
+| 用例ID | 用例名称                        | 作业要求覆盖       |
+| ------ | ------------------------------- | ------------------ |
+| TC-01  | 用户注册与登录                  | 回归与约束         |
+| TC-02  | 创建问卷                        | 创建问卷           |
+| TC-03  | 添加题目                        | 添加题目           |
+| TC-04  | 跳转逻辑                        | 跳转逻辑           |
+| TC-05  | 校验拦截                        | 校验测试           |
+| TC-06  | 提交问卷                        | 提交测试           |
+| TC-07  | 统计结果                        | 统计测试           |
+| TC-08  | 非草稿编辑拦截                  | 回归与约束         |
+| TC-09  | 状态不可回草稿                  | 回归与约束         |
+| TC-10  | 统计用户名可见性                | 回归与约束         |
+| TC-11  | 【第二阶段】题库保存与列表      | 题库管理           |
+| TC-12  | 【第二阶段】从题库导入到问卷    | 题库复用           |
+| TC-13  | 【第二阶段】题库版本管理        | 版本链             |
+| TC-14  | 【第二阶段】题目共享            | 共享               |
+| TC-15  | 【第二阶段】题目公开与公共题库  | 公开               |
+| TC-16  | 【第二阶段】题库使用情况查询    | 使用追踪           |
+| TC-17  | 【第二阶段】跨问卷统计          | 跨问卷统计         |
+| TC-18  | 【第二阶段】已发布问卷不受影响  | 版本隔离           |
 
 ## 5.5 自动化 API 测试脚本
 
@@ -80,7 +102,7 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 
 脚本覆盖范围:
 
-1. TC-01 到 TC-10 全部覆盖。
+1. TC-01 到 TC-18 全部覆盖。
 2. 自动创建测试用户与测试问卷。
 3. 自动执行并输出 PASS/FAIL。
 4. 每一步打印 API 方法、路径、请求体和服务器实际响应（状态码与响应体）。
@@ -94,10 +116,10 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 
 ## 5.6 本地自动化测试执行记录
 
-1. 执行时间: 2026-04-02（本地环境）
+1. 执行时间: 2026-04-14（本地环境）
 2. 执行命令: python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
-3. 输出摘要: 全部用例执行完成，覆盖 TC-01 到 TC-10，并完成清理测试问卷。
-4. 通过数: 55
+3. 输出摘要: 全部用例执行完成，覆盖 TC-01 到 TC-18，并完成清理测试问卷。
+4. 通过数: 108
 5. 失败数: 0
 6. 结论: 通过
 
@@ -922,3 +944,513 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 
 1. is_anonymous=false 的记录有 respondent_username。
 2. is_anonymous=true 的记录 respondent_username 为 null。
+
+### TC-11 【第二阶段】题库保存与列表
+
+#### A. 手动测试方法
+
+前置条件:
+
+1. 用户A已注册并登录，已创建草稿问卷并添加了题目。
+
+步骤:
+
+1. 在问卷编辑页题目列表中，点击某题目的「收藏」按钮。
+2. 页面提示已保存到题库。
+3. 在右侧「常用题库」面板切换到「我的题库」标签。
+4. 确认看到刚保存的题目。
+
+输入:
+
+1. 收藏 Q1 单选题。
+
+预期输出:
+
+1. 收藏成功提示。
+2. 我的题库列表中出现该题目，版本显示 v1。
+
+#### B. API测试方法
+
+步骤:
+
+1. POST /api/question-bank 保存一道单选题。
+2. GET /api/question-bank 查询列表。
+
+每一步输入:
+
+1. 步骤1 输入:
+
+- 方法与路径: POST /api/question-bank
+- Header:
+  - Content-Type: application/json
+  - Authorization: Bearer <owner_token>
+
+- Body:
+
+```json
+{
+  "type": "single_choice",
+  "title": "你的年级",
+  "options": [
+    { "key": "A", "label": "大一" },
+    { "key": "B", "label": "大二" },
+    { "key": "C", "label": "大三" },
+    { "key": "D", "label": "大四" }
+  ],
+  "is_public": false,
+  "version_note": "初始版本"
+}
+```
+
+2. 步骤2 输入:
+
+- 方法与路径: GET /api/question-bank
+- Header: Authorization: Bearer <owner_token>
+- Body: 无
+
+预期输出:
+
+1. 保存成功: HTTP 201, code=0，data.version=1，data.is_latest=true。
+2. 列表返回 1 条记录，title="你的年级"，version=1。
+
+### TC-12 【第二阶段】从题库导入到问卷
+
+#### A. 手动测试方法
+
+前置条件:
+
+1. TC-11 已通过，题库中存在题目。
+2. 用户A已创建一份新的草稿问卷。
+
+步骤:
+
+1. 进入新问卷编辑页。
+2. 在「常用题库」面板中找到已保存的题目。
+3. 点击「导入」按钮。
+4. 确认题目列表中出现导入的题目。
+
+输入:
+
+1. 导入题库中的"你的年级"题目。
+
+预期输出:
+
+1. 导入成功提示。
+2. 题目列表新增一道题，内容与题库题目一致。
+
+#### B. API测试方法
+
+步骤:
+
+1. POST /api/surveys/{survey_id}/questions/import 导入题目。
+
+每一步输入:
+
+1. 步骤1 输入:
+
+- 方法与路径: POST /api/surveys/{survey_id}/questions/import
+- 路径参数: survey_id=新草稿问卷 ID
+- Header:
+  - Content-Type: application/json
+  - Authorization: Bearer <owner_token>
+
+- Body:
+
+```json
+{
+  "item_id": "TC-11 返回的题库条目 ID",
+  "order": 1,
+  "required": true
+}
+```
+
+预期输出:
+
+1. 导入成功: HTTP 201, code=0。
+2. data.title="你的年级"，data.bank_item_id 非空，data.bank_version=1。
+
+### TC-13 【第二阶段】题库版本管理
+
+#### A. 手动测试方法
+
+前置条件:
+
+1. TC-11 已通过，题库中存在 v1 题目。
+
+步骤:
+
+1. 在「我的题库」面板中点击该题目的「新版本」。
+2. 修改标题为"你的年级（含研究生）"，点击创建。
+3. 点击「历史」查看版本列表。
+4. 点击 v1 的「恢复」按钮。
+
+输入:
+
+1. 新版本标题: "你的年级（含研究生）"。
+2. 恢复 v1。
+
+预期输出:
+
+1. 新版本创建成功，版本号 v2。
+2. 版本历史列表显示 v1 和 v2。
+3. 恢复后创建 v3，内容与 v1 一致，版本号 v3。
+
+#### B. API测试方法
+
+步骤:
+
+1. POST /api/question-bank/{item_id}/new-version 创建新版本。
+2. GET /api/question-bank/{item_id}/versions 查看版本历史。
+3. POST /api/question-bank/{item_id}/restore 恢复 v1。
+
+每一步输入:
+
+1. 步骤1 输入:
+
+- 方法与路径: POST /api/question-bank/{item_id}/new-version
+- 路径参数: item_id=TC-11 返回的题库条目 ID
+- Header:
+  - Content-Type: application/json
+  - Authorization: Bearer <owner_token>
+
+- Body:
+
+```json
+{
+  "title": "你的年级（含研究生）",
+  "version_note": "增加了研究生选项"
+}
+```
+
+2. 步骤2 输入:
+
+- 方法与路径: GET /api/question-bank/{item_id}/versions
+- 路径参数: item_id=TC-11 返回的题库条目 ID
+- Header: Authorization: Bearer <owner_token>
+- Body: 无
+
+3. 步骤3 输入:
+
+- 方法与路径: POST /api/question-bank/{item_id}/restore
+- 路径参数: item_id=最新版本 ID
+- Header:
+  - Content-Type: application/json
+  - Authorization: Bearer <owner_token>
+
+- Body:
+
+```json
+{
+  "version_item_id": "v1 的 ID"
+}
+```
+
+预期输出:
+
+1. 新版本创建成功: HTTP 201, code=0, data.version=2。
+2. 版本历史返回 2 条记录，按 version 升序。
+3. 恢复成功: HTTP 200, code=0, data.version=3, data.title="你的年级"。
+
+### TC-14 【第二阶段】题目共享
+
+#### A. 手动测试方法
+
+前置条件:
+
+1. TC-11 已通过，题库中存在题目。
+2. 用户E已注册。
+
+步骤:
+
+1. 在「我的题库」面板中点击题目的「共享」按钮。
+2. 输入用户E的用户名，点击确认。
+3. 用户E登录后进入任意问卷编辑页。
+4. 切换到「共享题目」标签，确认看到共享的题目。
+5. 点击「导入」确认可以使用。
+
+输入:
+
+1. 共享目标用户名: sharee_xxx。
+
+预期输出:
+
+1. 共享成功提示。
+2. 用户E在共享题目列表中看到该题目。
+3. 用户E可以成功导入该题目到自己的问卷。
+
+#### B. API测试方法
+
+步骤:
+
+1. POST /api/question-bank/{item_id}/share 共享给用户E。
+2. 使用用户E token 调用 GET /api/question-bank/shared 查看共享列表。
+3. 使用用户E token 调用 POST /api/surveys/{survey_id}/questions/import 导入共享题目。
+
+每一步输入:
+
+1. 步骤1 输入:
+
+- 方法与路径: POST /api/question-bank/{item_id}/share
+- 路径参数: item_id=TC-11 返回的题库条目 ID
+- Header:
+  - Content-Type: application/json
+  - Authorization: Bearer <owner_token>
+
+- Body:
+
+```json
+{
+  "usernames": ["sharee_xxx"]
+}
+```
+
+2. 步骤2 输入:
+
+- 方法与路径: GET /api/question-bank/shared
+- Header: Authorization: Bearer <sharee_token>
+- Body: 无
+
+3. 步骤3 输入:
+
+- 方法与路径: POST /api/surveys/{survey_id}/questions/import
+- 路径参数: survey_id=用户E的草稿问卷 ID
+- Header:
+  - Content-Type: application/json
+  - Authorization: Bearer <sharee_token>
+
+- Body:
+
+```json
+{
+  "item_id": "TC-11 返回的题库条目 ID",
+  "order": 1,
+  "required": false
+}
+```
+
+预期输出:
+
+1. 共享成功: HTTP 200, code=0。
+2. 共享列表返回 1 条记录，owner_username 为用户A。
+3. 导入成功: HTTP 201, code=0。
+
+### TC-15 【第二阶段】题目公开与公共题库
+
+#### A. 手动测试方法
+
+前置条件:
+
+1. TC-11 已通过。
+
+步骤:
+
+1. 在「我的题库」面板中点击题目的「设为公开」按钮。
+2. 用户E登录后进入问卷编辑页。
+3. 切换到「公共题库」标签，确认看到公开的题目。
+4. 点击「导入」确认可以使用。
+5. 用户A点击「设为私有」。
+
+预期输出:
+
+1. 设为公开成功。
+2. 用户E在公共题库中看到该题目。
+3. 设为私有后，用户E不再看到该题目。
+
+#### B. API测试方法
+
+步骤:
+
+1. POST /api/question-bank/{item_id}/public 设为公开。
+2. 使用用户E token 调用 GET /api/question-bank/public 查看公开列表。
+3. POST /api/question-bank/{item_id}/public 设回私有。
+4. 再次查看公开列表确认已移除。
+
+每一步输入:
+
+1. 步骤1 输入:
+
+- 方法与路径: POST /api/question-bank/{item_id}/public
+- 路径参数: item_id=TC-11 返回的题库条目 ID
+- Header:
+  - Content-Type: application/json
+  - Authorization: Bearer <owner_token>
+
+- Body:
+
+```json
+{
+  "is_public": true
+}
+```
+
+2. 步骤2 输入:
+
+- 方法与路径: GET /api/question-bank/public
+- Header: Authorization: Bearer <sharee_token>
+- Body: 无
+
+3. 步骤3 输入:
+
+- 方法与路径: POST /api/question-bank/{item_id}/public
+- 路径参数: item_id=TC-11 返回的题库条目 ID
+- Header:
+  - Content-Type: application/json
+  - Authorization: Bearer <owner_token>
+
+- Body:
+
+```json
+{
+  "is_public": false
+}
+```
+
+4. 步骤4 输入:
+
+- 方法与路径: GET /api/question-bank/public
+- Header: Authorization: Bearer <sharee_token>
+- Body: 无
+
+预期输出:
+
+1. 设为公开成功: HTTP 200, code=0, data.is_public=true。
+2. 公开列表返回该题目（owner_username 为用户A）。
+3. 设为私有成功: HTTP 200, code=0, data.is_public=false。
+4. 公开列表不再包含该题目。
+
+### TC-16 【第二阶段】题库使用情况查询
+
+#### A. 手动测试方法
+
+前置条件:
+
+1. TC-12 已通过，题库题目已导入到问卷。
+
+步骤:
+
+1. 在「我的题库」面板中点击题目的「使用情况」按钮。
+2. 查看使用情况列表。
+
+预期输出:
+
+1. 列表显示导入了该题目的问卷名称、状态、题目顺序。
+
+#### B. API测试方法
+
+步骤:
+
+1. GET /api/question-bank/{item_id}/usage 查询使用情况。
+
+每一步输入:
+
+1. 步骤1 输入:
+
+- 方法与路径: GET /api/question-bank/{item_id}/usage
+- 路径参数: item_id=TC-11 返回的题库条目 ID
+- Header: Authorization: Bearer <owner_token>
+- Body: 无
+
+预期输出:
+
+1. HTTP 200, code=0。
+2. data 为数组，至少包含一条记录。
+3. 每条记录包含 survey_id、survey_title、survey_status、question_id、question_order、bank_version。
+
+### TC-17 【第二阶段】跨问卷统计
+
+#### A. 手动测试方法
+
+前置条件:
+
+1. 题库题目已导入到两份问卷，且两份问卷都已发布并收到提交。
+
+步骤:
+
+1. 在「我的题库」面板中点击题目的「跨问卷统计」按钮。
+2. 查看聚合统计结果。
+
+预期输出:
+
+1. 显示涉及问卷数、总回答数。
+2. 单选题显示选项分布。
+3. 多选题显示选项选择次数。
+4. 数字题显示平均值。
+
+#### B. API测试方法
+
+步骤:
+
+1. GET /api/question-bank/{item_id}/cross-stats 查询跨问卷统计。
+
+每一步输入:
+
+1. 步骤1 输入:
+
+- 方法与路径: GET /api/question-bank/{item_id}/cross-stats
+- 路径参数: item_id=TC-11 返回的题库条目 ID
+- Header: Authorization: Bearer <owner_token>
+- Body: 无
+
+预期输出:
+
+1. HTTP 200, code=0。
+2. data.total_surveys >= 1。
+3. data.stats 包含按题型聚合的统计结果。
+4. data.stats.total_answered >= 0。
+
+### TC-18 【第二阶段】已发布问卷不受题库修改影响
+
+#### A. 手动测试方法
+
+前置条件:
+
+1. 题库题目已导入到问卷，问卷已发布并收到提交。
+
+步骤:
+
+1. 在「我的题库」面板中点击该题目的「新版本」。
+2. 修改标题为"修改后的标题"，创建新版本。
+3. 打开已发布问卷的统计页，查看该题目的标题。
+4. 确认题目标题仍为原标题。
+
+预期输出:
+
+1. 已发布问卷中的题目不受题库修改影响，标题不变。
+
+#### B. API测试方法
+
+步骤:
+
+1. POST /api/question-bank/{item_id}/new-version 创建新版本。
+2. GET /api/surveys/{survey_id}/questions 查看已发布问卷中的题目。
+
+每一步输入:
+
+1. 步骤1 输入:
+
+- 方法与路径: POST /api/question-bank/{item_id}/new-version
+- 路径参数: item_id=已导入题目的题库条目 ID
+- Header:
+  - Content-Type: application/json
+  - Authorization: Bearer <owner_token>
+
+- Body:
+
+```json
+{
+  "title": "修改后的标题",
+  "version_note": "测试版本隔离"
+}
+```
+
+2. 步骤2 输入:
+
+- 方法与路径: GET /api/surveys/{survey_id}/questions
+- 路径参数: survey_id=已发布问卷的 ID
+- Header: Authorization: Bearer <owner_token>
+- Body: 无
+
+预期输出:
+
+1. 新版本创建成功: HTTP 201, code=0, data.title="修改后的标题"。
+2. 已发布问卷中的题目标题仍为原标题（非"修改后的标题"），证明版本隔离有效。

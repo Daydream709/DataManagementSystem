@@ -176,3 +176,57 @@ class SubmitAnswerSerializer(serializers.Serializer):
 class NextQuestionSerializer(serializers.Serializer):
     current_question_id = serializers.CharField()
     answer = serializers.JSONField(required=False, allow_null=True)
+
+
+class QuestionBankCreateSerializer(serializers.Serializer):
+    type = serializers.ChoiceField(choices=QUESTION_TYPES)
+    title = serializers.CharField(max_length=300)
+    options = OptionSerializer(many=True, required=False)
+    validation = serializers.DictField(required=False)
+    is_public = serializers.BooleanField(required=False, default=False)
+    version_note = serializers.CharField(max_length=500, required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        q_type = attrs["type"]
+        options = attrs.get("options", [])
+        validation = attrs.get("validation", {})
+
+        if q_type in ("single_choice", "multi_choice"):
+            if len(options) < 2:
+                raise serializers.ValidationError({"options": "选择题至少需要2个选项"})
+            option_keys = [item["key"] for item in options]
+            if len(option_keys) != len(set(option_keys)):
+                raise serializers.ValidationError({"options": "选项 key 不可重复"})
+
+        if q_type == "fill_blank":
+            value_type = validation.get("value_type")
+            if value_type not in FILL_VALUE_TYPES:
+                raise serializers.ValidationError({"validation": "填空题必须设置 value_type=text/number"})
+
+        return attrs
+
+
+class QuestionBankImportSerializer(serializers.Serializer):
+    item_id = serializers.CharField()
+    order = serializers.IntegerField(min_value=1)
+    required = serializers.BooleanField(required=False, default=False)
+
+
+class QuestionBankNewVersionSerializer(serializers.Serializer):
+    title = serializers.CharField(max_length=300, required=False)
+    type = serializers.ChoiceField(choices=QUESTION_TYPES, required=False)
+    options = OptionSerializer(many=True, required=False)
+    validation = serializers.DictField(required=False)
+    version_note = serializers.CharField(max_length=500, required=False, allow_blank=True)
+
+
+class QuestionBankShareSerializer(serializers.Serializer):
+    usernames = serializers.ListField(child=serializers.CharField(max_length=50), min_length=1)
+
+
+class QuestionBankRestoreSerializer(serializers.Serializer):
+    version_item_id = serializers.CharField()
+
+
+class QuestionBankPublicSerializer(serializers.Serializer):
+    is_public = serializers.BooleanField()

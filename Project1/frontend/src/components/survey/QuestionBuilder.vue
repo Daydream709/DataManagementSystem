@@ -1,7 +1,7 @@
 <script setup>
 import { reactive, ref } from 'vue'
 
-import { createQuestionApi, deleteQuestionApi, updateQuestionApi } from '../../api/survey'
+import { createQuestionApi, createQuestionBankApi, deleteQuestionApi, updateQuestionApi } from '../../api/survey'
 
 const props = defineProps({
   surveyId: {
@@ -219,6 +219,26 @@ const summarizeValidation = (item) => {
   return `文本，最短 ${item.validation?.min_length ?? '-'}，最长 ${item.validation?.max_length ?? '-'}`
 }
 
+const saveToBank = async (item) => {
+  loading.value = true
+  errorMessage.value = ''
+  message.value = ''
+  try {
+    const payload = {
+      type: item.type,
+      title: item.title,
+      options: item.options || [],
+      validation: item.validation || {}
+    }
+    await createQuestionBankApi(payload)
+    message.value = `「${item.title}」已保存到题库`
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    loading.value = false
+  }
+}
+
 resetForm()
 </script>
 
@@ -289,6 +309,7 @@ resetForm()
             <p class="mt-1 text-xs text-slate-500">{{ summarizeValidation(item) }}</p>
           </div>
           <div class="flex gap-2">
+            <button class="btn-secondary" @click="saveToBank(item)" title="保存到常用题库">收藏</button>
             <button class="btn-secondary" @click="startEdit(item)">编辑</button>
             <button class="btn-secondary" @click="removeQuestion(item.id)">删除</button>
           </div>

@@ -188,6 +188,9 @@ def create_question(owner_id: str, survey_id: str, payload: dict[str, Any]) -> d
         "required": bool(payload.get("required", False)),
         "options": payload.get("options", []),
         "validation": payload.get("validation", {}),
+        "bank_item_id": payload.get("bank_item_id"),
+        "bank_chain_id": payload.get("bank_chain_id"),
+        "bank_version": payload.get("bank_version"),
         "created_at": now,
         "updated_at": now,
     }
@@ -753,3 +756,402 @@ def get_question_stats(owner_id: str, question_id: str) -> dict[str, Any]:
     answers_col = get_collection("answers")
     submissions = list(answers_col.find({"survey_id": question["survey_id"]}))
     return _stats_for_question(question, submissions)
+
+
+# ── 题库（常用题目） ─────────────────────────────────────────────
+
+
+def _qbank_to_response(doc: dict[str, Any]) -> dict[str, Any]:
+    item = serialize_doc(doc)
+    item["id"] = item.pop("_id")
+    return item
+
+
+def _find_accessible_bank_item(owner_oid: ObjectId, item_id: str) -> dict[str, Any]:
+    bank = get_collection("question_bank")
+    oid = to_object_id(item_id, "item_id")
+    item = bank.find_one({
+        "_id": oid,
+        "$or": [
+            {"owner_id": owner_oid},
+            {"shared_with": owner_oid},
+            {"is_public": True},
+        ],
+    })
+    if not item:
+        raise NotFound("题库题目不存在或无权访问")
+    return item
+
+
+# ── 基础 CRUD ──
+
+
+def list_question_bank(owner_id: str) -> list[dict[str, Any]]:
+    bank = get_collection("question_bank")
+    docs = bank.find({
+        "owner_id": to_object_id(owner_id, "owner_id"),
+        "is_latest": True,
+    }).sort("created_at", -1)
+    return [_qbank_to_response(doc) for doc in docs]
+
+
+def create_question_bank_item(owner_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    bank = get_collection("question_bank")
+    now = _now()
+    owner_oid = to_object_id(owner_id, "owner_id")
+
+    doc = {
+        "owner_id": owner_oid,
+        "type": payload["type"],
+        "title": payload["title"],
+        "options": payload.get("options", []),
+        "validation": payload.get("validation", {}),
+        "chain_id": None,
+        "parent_id": None,
+        "version": 1,
+        "version_note": payload.get("version_note", ""),
+        "shared_with": [],
+        "is_public": bool(payload.get("is_public", False)),
+        "is_latest": True,
+        "created_at": now,
+        "updated_at": now,
+    }
+    result = bank.insert_one(doc)
+    doc["_id"] = result.inserted_id
+
+    bank.update_one({"_id": doc["_id"]}, {"$set": {"chain_id": doc["_id"]}})
+    doc["chain_id"] = doc["_id"]
+
+    return _qbank_to_response(doc)
+
+
+def delete_question_bank_item(owner_id: str, item_id: str) -> None:
+    bank = get_collection("question_bank")
+    owner_oid = to_object_id(owner_id, "owner_id")
+    oid = to_object_id(item_id, "item_id")
+
+    item = bank.find_one({"_id": oid, "owner_id": owner_oid})
+    if not item:
+        raise NotFound("题库题目不存在")
+
+    bank.delete_one({"_id": oid})
+
+    if item.get("is_latest") and item["version"] > 1:
+        prev = bank.find_one(
+            {"chain_id": item["chain_id"], "version": {"$lt": item["version"]}, "owner_id": owner_oid},
+            sort=[("version", -1)],
+        )
+        if prev:
+            bank.update_one({"_id": prev["_id"]}, {"$set": {"is_latest": True}})
+
+
+def delete_question_bank_chain(owner_id: str, item_id: str) -> None:
+    bank = get_collection("question_bank")
+    owner_oid = to_object_id(owner_id, "owner_id")
+    oid = to_object_id(item_id, "item_id")
+
+    item = bank.find_one({"_id": oid, "owner_id": owner_oid})
+    if not item:
+        raise NotFound("题库题目不存在")
+
+    bank.delete_many({"chain_id": item["chain_id"], "owner_id": owner_oid})
+
+
+def import_question_from_bank(owner_id: str, survey_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    bank = get_collection("question_bank")
+    owner_oid = to_object_id(owner_id, "owner_id")
+    item_id = payload.get("item_id")
+    if not item_id:
+        raise ValidationError({"item_id": "缺少题库题目 ID"})
+
+    bank_item = _find_accessible_bank_item(owner_oid, item_id)
+
+    question_payload = {
+        "order": payload["order"],
+        "type": bank_item["type"],
+        "title": bank_item["title"],
+        "required": bool(payload.get("required", False)),
+        "options": bank_item.get("options", []),
+        "validation": bank_item.get("validation", {}),
+        "bank_item_id": bank_item["_id"],
+        "bank_chain_id": bank_item["chain_id"],
+        "bank_version": bank_item["version"],
+    }
+    return create_question(owner_id, survey_id, question_payload)
+
+
+# ── 版本管理 ──
+
+
+def create_new_bank_version(owner_id: str, item_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    bank = get_collection("question_bank")
+    owner_oid = to_object_id(owner_id, "owner_id")
+    oid = to_object_id(item_id, "item_id")
+
+    current = bank.find_one({"_id": oid, "owner_id": owner_oid})
+    if not current:
+        raise NotFound("题库题目不存在")
+
+    chain_id = current["chain_id"]
+
+    latest = bank.find_one({"chain_id": chain_id}, sort=[("version", -1)])
+    new_version = (latest["version"] if latest else 0) + 1
+
+    bank.update_many(
+        {"chain_id": chain_id, "is_latest": True},
+        {"$set": {"is_latest": False}},
+    )
+
+    now = _now()
+    doc = {
+        "owner_id": owner_oid,
+        "type": payload.get("type", current["type"]),
+        "title": payload.get("title", current["title"]),
+        "options": payload.get("options", current.get("options", [])),
+        "validation": payload.get("validation", current.get("validation", {})),
+        "chain_id": chain_id,
+        "parent_id": oid,
+        "version": new_version,
+        "version_note": payload.get("version_note", ""),
+        "shared_with": current.get("shared_with", []),
+        "is_public": current.get("is_public", False),
+        "is_latest": True,
+        "created_at": now,
+        "updated_at": now,
+    }
+    result = bank.insert_one(doc)
+    doc["_id"] = result.inserted_id
+    return _qbank_to_response(doc)
+
+
+def list_bank_versions(owner_id: str, item_id: str) -> list[dict[str, Any]]:
+    bank = get_collection("question_bank")
+    owner_oid = to_object_id(owner_id, "owner_id")
+    oid = to_object_id(item_id, "item_id")
+
+    item = bank.find_one({"_id": oid, "owner_id": owner_oid})
+    if not item:
+        raise NotFound("题库题目不存在")
+
+    docs = bank.find({"chain_id": item["chain_id"]}).sort("version", 1)
+    return [_qbank_to_response(doc) for doc in docs]
+
+
+def restore_bank_version(owner_id: str, item_id: str, target_version_item_id: str) -> dict[str, Any]:
+    bank = get_collection("question_bank")
+    owner_oid = to_object_id(owner_id, "owner_id")
+    oid = to_object_id(item_id, "item_id")
+    target_oid = to_object_id(target_version_item_id, "version_item_id")
+
+    current = bank.find_one({"_id": oid, "owner_id": owner_oid})
+    if not current:
+        raise NotFound("题库题目不存在")
+
+    target = bank.find_one({"_id": target_oid, "chain_id": current["chain_id"]})
+    if not target:
+        raise NotFound("目标版本不存在")
+
+    return create_new_bank_version(owner_id, oid, {
+        "type": target["type"],
+        "title": target["title"],
+        "options": target.get("options", []),
+        "validation": target.get("validation", {}),
+        "version_note": f"恢复到版本 {target['version']}",
+    })
+
+
+# ── 共享 ──
+
+
+def share_bank_item(owner_id: str, item_id: str, usernames: list[str]) -> dict[str, Any]:
+    bank = get_collection("question_bank")
+    users = get_collection("users")
+    owner_oid = to_object_id(owner_id, "owner_id")
+    oid = to_object_id(item_id, "item_id")
+
+    item = bank.find_one({"_id": oid, "owner_id": owner_oid})
+    if not item:
+        raise NotFound("题库题目不存在")
+
+    chain_id = item["chain_id"]
+    shared_user_ids: list[Any] = []
+    not_found: list[str] = []
+
+    for username in usernames:
+        user = users.find_one({"username": username})
+        if user:
+            if user["_id"] != owner_oid:
+                shared_user_ids.append(user["_id"])
+        else:
+            not_found.append(username)
+
+    if not_found:
+        raise ValidationError(f"用户不存在: {', '.join(not_found)}")
+
+    bank.update_many(
+        {"chain_id": chain_id, "owner_id": owner_oid},
+        {"$addToSet": {"shared_with": {"$each": shared_user_ids}}},
+    )
+
+    return {"shared_with_count": len(shared_user_ids), "chain_id": str(chain_id)}
+
+
+def set_bank_item_public(owner_id: str, item_id: str, is_public: bool) -> dict[str, Any]:
+    bank = get_collection("question_bank")
+    owner_oid = to_object_id(owner_id, "owner_id")
+    oid = to_object_id(item_id, "item_id")
+
+    item = bank.find_one({"_id": oid, "owner_id": owner_oid})
+    if not item:
+        raise NotFound("题库题目不存在")
+
+    bank.update_many(
+        {"chain_id": item["chain_id"], "owner_id": owner_oid},
+        {"$set": {"is_public": bool(is_public)}},
+    )
+    return {"is_public": bool(is_public), "chain_id": str(item["chain_id"])}
+
+
+def list_shared_bank_items(owner_id: str) -> list[dict[str, Any]]:
+    bank = get_collection("question_bank")
+    users = get_collection("users")
+    owner_oid = to_object_id(owner_id, "owner_id")
+
+    docs = bank.find({
+        "is_latest": True,
+        "owner_id": {"$ne": owner_oid},
+        "$or": [
+            {"shared_with": owner_oid},
+            {"is_public": True},
+        ],
+    }).sort("created_at", -1)
+    result: list[dict[str, Any]] = []
+    for doc in docs:
+        item = _qbank_to_response(doc)
+        owner = users.find_one({"_id": doc["owner_id"]})
+        item["owner_username"] = owner.get("username", "") if owner else ""
+        item["source"] = "public" if doc.get("is_public") else "shared"
+        result.append(item)
+    return result
+
+
+def list_public_bank_items(owner_id: str) -> list[dict[str, Any]]:
+    bank = get_collection("question_bank")
+    users = get_collection("users")
+    owner_oid = to_object_id(owner_id, "owner_id")
+
+    docs = bank.find({
+        "is_public": True,
+        "is_latest": True,
+        "owner_id": {"$ne": owner_oid},
+    }).sort("created_at", -1)
+    result: list[dict[str, Any]] = []
+    for doc in docs:
+        item = _qbank_to_response(doc)
+        owner = users.find_one({"_id": doc["owner_id"]})
+        item["owner_username"] = owner.get("username", "") if owner else ""
+        result.append(item)
+    return result
+
+
+# ── 使用情况与跨问卷统计 ──
+
+
+def get_bank_item_usage(owner_id: str, item_id: str) -> list[dict[str, Any]]:
+    bank = get_collection("question_bank")
+    surveys_col = get_collection("surveys")
+    questions_col = get_collection("questions")
+    owner_oid = to_object_id(owner_id, "owner_id")
+    oid = to_object_id(item_id, "item_id")
+
+    item = bank.find_one({"_id": oid, "owner_id": owner_oid})
+    if not item:
+        raise NotFound("题库题目不存在")
+
+    related = questions_col.find({"bank_chain_id": item["chain_id"]})
+    result: list[dict[str, Any]] = []
+    for q in related:
+        survey = surveys_col.find_one({"_id": q["survey_id"]})
+        if survey:
+            result.append({
+                "survey_id": str(survey["_id"]),
+                "survey_title": survey.get("title", ""),
+                "survey_status": survey.get("status", ""),
+                "question_id": str(q["_id"]),
+                "question_order": q.get("order", 0),
+                "bank_version": q.get("bank_version"),
+            })
+    return result
+
+
+def get_bank_cross_stats(owner_id: str, item_id: str) -> dict[str, Any]:
+    bank = get_collection("question_bank")
+    answers_col = get_collection("answers")
+    questions_col = get_collection("questions")
+    owner_oid = to_object_id(owner_id, "owner_id")
+    oid = to_object_id(item_id, "item_id")
+
+    item = bank.find_one({"_id": oid, "owner_id": owner_oid})
+    if not item:
+        raise NotFound("题库题目不存在")
+
+    chain_id = item["chain_id"]
+    related_questions = list(questions_col.find({"bank_chain_id": chain_id}))
+
+    if not related_questions:
+        return {
+            "bank_item": _qbank_to_response(item),
+            "total_surveys": 0,
+            "total_submissions": 0,
+            "stats": {},
+        }
+
+    question_oids = {q["_id"] for q in related_questions}
+    all_answers: list[Any] = []
+    survey_ids: set[Any] = set()
+
+    for q in related_questions:
+        survey_ids.add(q["survey_id"])
+        submissions = answers_col.find({"survey_id": q["survey_id"]})
+        for sub in submissions:
+            for ans in sub.get("answers", []):
+                if ans["question_id"] in question_oids:
+                    all_answers.append(ans.get("answer"))
+
+    q_type = item["type"]
+    stats: dict[str, Any] = {"total_answered": len(all_answers)}
+
+    if q_type == "single_choice":
+        counts = {opt["key"]: 0 for opt in item.get("options", [])}
+        for ans in all_answers:
+            if isinstance(ans, str) and ans in counts:
+                counts[ans] += 1
+        stats["option_counts"] = counts
+
+    elif q_type == "multi_choice":
+        counts = {opt["key"]: 0 for opt in item.get("options", [])}
+        for ans in all_answers:
+            if isinstance(ans, list):
+                for a in ans:
+                    if a in counts:
+                        counts[a] += 1
+        stats["option_counts"] = counts
+
+    elif q_type == "fill_blank":
+        stats["values"] = all_answers
+        if item.get("validation", {}).get("value_type") == "number":
+            numeric = []
+            for v in all_answers:
+                try:
+                    numeric.append(float(v))
+                except (ValueError, TypeError):
+                    pass
+            stats["average"] = mean(numeric) if numeric else None
+            stats["numeric_count"] = len(numeric)
+
+    return {
+        "bank_item": _qbank_to_response(item),
+        "total_surveys": len(survey_ids),
+        "total_submissions": len(all_answers),
+        "stats": stats,
+    }

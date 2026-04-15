@@ -6,6 +6,12 @@ from .serializers import (
     JumpRuleCreateSerializer,
     LoginSerializer,
     NextQuestionSerializer,
+    QuestionBankCreateSerializer,
+    QuestionBankImportSerializer,
+    QuestionBankNewVersionSerializer,
+    QuestionBankPublicSerializer,
+    QuestionBankRestoreSerializer,
+    QuestionBankShareSerializer,
     QuestionCreateSerializer,
     QuestionUpdateSerializer,
     RegisterSerializer,
@@ -17,18 +23,32 @@ from .services.auth_service import login_user, register_user
 from .services.survey_service import (
     compute_next_question,
     create_jump_rule,
+    create_new_bank_version,
     create_question,
+    create_question_bank_item,
     create_survey,
     delete_jump_rule,
     delete_question,
+    delete_question_bank_chain,
+    delete_question_bank_item,
     delete_survey,
+    get_bank_cross_stats,
+    get_bank_item_usage,
     get_public_survey,
     get_question_stats,
     get_survey,
     get_survey_stats,
+    import_question_from_bank,
+    list_bank_versions,
     list_jump_rules,
+    list_public_bank_items,
+    list_question_bank,
     list_questions,
+    list_shared_bank_items,
     list_surveys,
+    restore_bank_version,
+    set_bank_item_public,
+    share_bank_item,
     submit_survey,
     update_question,
     update_survey,
@@ -196,4 +216,96 @@ class SurveyStatsView(APIView):
 class QuestionStatsView(APIView):
     def get(self, request, question_id: str):
         data = get_question_stats(request.user.id, question_id)
+        return ok(data=data)
+
+
+class QuestionBankListCreateView(APIView):
+    def get(self, request):
+        data = list_question_bank(request.user.id)
+        return ok(data=data)
+
+    def post(self, request):
+        serializer = QuestionBankCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = create_question_bank_item(request.user.id, serializer.validated_data)
+        return ok(data=data, message="已保存到题库", status_code=201)
+
+
+class QuestionBankDetailView(APIView):
+    def delete(self, request, item_id: str):
+        delete_chain = request.query_params.get("chain") == "true"
+        if delete_chain:
+            delete_question_bank_chain(request.user.id, item_id)
+        else:
+            delete_question_bank_item(request.user.id, item_id)
+        return ok(message="已删除")
+
+
+class QuestionImportView(APIView):
+    def post(self, request, survey_id: str):
+        serializer = QuestionBankImportSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = import_question_from_bank(request.user.id, survey_id, serializer.validated_data)
+        return ok(data=data, message="从题库导入成功", status_code=201)
+
+
+class QuestionBankNewVersionView(APIView):
+    def post(self, request, item_id: str):
+        serializer = QuestionBankNewVersionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = create_new_bank_version(request.user.id, item_id, serializer.validated_data)
+        return ok(data=data, message="新版本已创建", status_code=201)
+
+
+class QuestionBankVersionsView(APIView):
+    def get(self, request, item_id: str):
+        data = list_bank_versions(request.user.id, item_id)
+        return ok(data=data)
+
+
+class QuestionBankRestoreView(APIView):
+    def post(self, request, item_id: str):
+        serializer = QuestionBankRestoreSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = restore_bank_version(request.user.id, item_id, serializer.validated_data["version_item_id"])
+        return ok(data=data, message="版本已恢复")
+
+
+class QuestionBankShareView(APIView):
+    def post(self, request, item_id: str):
+        serializer = QuestionBankShareSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = share_bank_item(request.user.id, item_id, serializer.validated_data["usernames"])
+        return ok(data=data, message="共享成功")
+
+
+class QuestionBankPublicView(APIView):
+    def post(self, request, item_id: str):
+        serializer = QuestionBankPublicSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = set_bank_item_public(request.user.id, item_id, serializer.validated_data["is_public"])
+        return ok(data=data)
+
+
+class QuestionBankSharedView(APIView):
+    def get(self, request):
+        data = list_shared_bank_items(request.user.id)
+        return ok(data=data)
+
+
+class QuestionBankPublicListView(APIView):
+    def get(self, request):
+        data = list_public_bank_items(request.user.id)
+        return ok(data=data)
+
+
+class QuestionBankUsageView(APIView):
+    def get(self, request, item_id: str):
+        data = get_bank_item_usage(request.user.id, item_id)
+        return ok(data=data)
+
+
+class QuestionBankCrossStatsView(APIView):
+    def get(self, request, item_id: str):
+        data = get_bank_cross_stats(request.user.id, item_id)
         return ok(data=data)

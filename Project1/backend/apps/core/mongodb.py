@@ -64,4 +64,27 @@ def ensure_indexes() -> None:
             name="idx_answer_survey_respondent",
         )
 
+        questions.create_index(
+            [("bank_chain_id", ASCENDING)],
+            name="idx_question_bank_chain",
+        )
+
+        question_bank = get_collection("question_bank")
+        question_bank.create_index(
+            [("owner_id", ASCENDING), ("is_latest", ASCENDING), ("created_at", ASCENDING)],
+            name="idx_qbank_owner_latest_created",
+        )
+        question_bank.create_index(
+            [("chain_id", ASCENDING), ("version", ASCENDING)],
+            name="idx_qbank_chain_version",
+        )
+        question_bank.create_index(
+            [("shared_with", ASCENDING), ("is_latest", ASCENDING)],
+            name="idx_qbank_shared_latest",
+        )
+        question_bank.create_index(
+            [("is_public", ASCENDING), ("is_latest", ASCENDING), ("created_at", ASCENDING)],
+            name="idx_qbank_public_latest_created",
+        )
+
         _indexes_ready = True

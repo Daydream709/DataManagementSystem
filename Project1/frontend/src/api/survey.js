@@ -25,3 +25,32 @@ export const submitSurveyApi = (slug, payload) => http.post(`/public/surveys/${s
 
 export const getSurveyStatsApi = (surveyId) => http.get(`/surveys/${surveyId}/stats`);
 export const getQuestionStatsApi = (questionId) => http.get(`/questions/${questionId}/stats`);
+
+// Question Bank - Basic
+export const listQuestionBankApi = () => http.get("/question-bank");
+export const createQuestionBankApi = (payload) => http.post("/question-bank", payload);
+export const deleteQuestionBankApi = (itemId, chain = false) =>
+  http.delete(`/question-bank/${itemId}${chain ? "?chain=true" : ""}`);
+
+// Question Bank - Versions
+export const listBankVersionsApi = (itemId) => http.get(`/question-bank/${itemId}/versions`);
+export const createNewBankVersionApi = (itemId, payload) =>
+  http.post(`/question-bank/${itemId}/new-version`, payload);
+export const restoreBankVersionApi = (itemId, versionItemId) =>
+  http.post(`/question-bank/${itemId}/restore`, { version_item_id: versionItemId });
+
+// Question Bank - Sharing
+export const listSharedBankApi = () => http.get("/question-bank/shared");
+export const listPublicBankApi = () => http.get("/question-bank/public");
+export const shareBankItemApi = (itemId, usernames) =>
+  http.post(`/question-bank/${itemId}/share`, { usernames });
+export const setBankPublicApi = (itemId, isPublic) =>
+  http.post(`/question-bank/${itemId}/public`, { is_public: isPublic });
+
+// Question Bank - Usage & Stats
+export const getBankUsageApi = (itemId) => http.get(`/question-bank/${itemId}/usage`);
+export const getBankCrossStatsApi = (itemId) => http.get(`/question-bank/${itemId}/cross-stats`);
+
+// Import
+export const importQuestionFromBankApi = (surveyId, payload) =>
+  http.post(`/surveys/${surveyId}/questions/import`, payload);

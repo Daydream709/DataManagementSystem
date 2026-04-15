@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import JumpRuleBuilder from '../../components/survey/JumpRuleBuilder.vue'
+import QuestionBankPanel from '../../components/survey/QuestionBankPanel.vue'
 import QuestionBuilder from '../../components/survey/QuestionBuilder.vue'
 import {
   getSurveyApi,
@@ -129,6 +130,7 @@ onMounted(fetchData)
 
       <div class="grid gap-5 lg:grid-cols-2">
         <QuestionBuilder v-if="isDraftEditable" :survey-id="surveyId" :questions="questions" @changed="fetchData" />
+        <QuestionBankPanel v-if="isDraftEditable" :survey-id="surveyId" :current-question-count="questions.length" @changed="fetchData" />
         <JumpRuleBuilder v-if="isDraftEditable" :survey-id="surveyId" :questions="questions" :rules="jumpRules"
           @changed="fetchData" />
 

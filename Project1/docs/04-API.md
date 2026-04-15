@@ -318,7 +318,120 @@ Authorization: Bearer <token>
 - 多选：选项被选择次数。
 - 填空：值列表，数字题额外返回平均值。
 
-## 4.9 常见错误示例
+## 4.9 【第二阶段新增】题库接口（常用题目）
+
+### 4.9.1 查询我的题库
+
+1. GET /api/question-bank。
+2. 返回当前用户保存的常用题目列表（仅最新版本）。
+
+### 4.9.2 保存题目到题库
+
+1. POST /api/question-bank。
+2. 请求示例：
+
+```json
+{
+  "type": "single_choice",
+  "title": "你的年级",
+  "options": [
+    { "key": "A", "label": "大一" },
+    { "key": "B", "label": "大二" },
+    { "key": "C", "label": "大三" },
+    { "key": "D", "label": "大四" }
+  ],
+  "is_public": false,
+  "version_note": "初始版本"
+}
+```
+
+3. 校验规则与题目接口一致（选择题至少2选项、填空题需 value_type 等）。
+
+### 4.9.3 删除题库题目
+
+1. DELETE /api/question-bank/{item_id}。
+2. 删除单个版本。若删除的是最新版本，前一版本自动成为最新。
+3. 查询参数 ?chain=true 可删除整个版本链。
+
+### 4.9.4 从题库导入到问卷
+
+1. POST /api/surveys/{survey_id}/questions/import。
+2. 约束：仅草稿问卷可导入。
+3. 请求示例：
+
+```json
+{
+  "item_id": "680a...",
+  "order": 3,
+  "required": true
+}
+```
+
+4. 支持导入自己题库、他人共享、或公开题目。导入时记录 bank_item_id、bank_chain_id、bank_version 到 questions 文档。
+
+### 4.9.5 查看共享给我的题目
+
+1. GET /api/question-bank/shared。
+2. 返回其他用户共享给当前用户的题目（最新版本）。
+
+### 4.9.6 查看公开题目
+
+1. GET /api/question-bank/public。
+2. 返回所有公开题目（排除自己的，最新版本）。
+
+### 4.9.7 版本管理
+
+1. 查看版本历史：GET /api/question-bank/{item_id}/versions。
+2. 创建新版本：POST /api/question-bank/{item_id}/new-version。
+
+请求示例：
+
+```json
+{
+  "title": "修改后的标题",
+  "version_note": "增加了选项E"
+}
+```
+
+3. 恢复旧版本：POST /api/question-bank/{item_id}/restore。
+
+请求示例：
+
+```json
+{
+  "version_item_id": "681b..."
+}
+```
+
+### 4.9.8 共享管理
+
+1. 共享给指定用户：POST /api/question-bank/{item_id}/share。
+
+```json
+{
+  "usernames": ["alice", "bob"]
+}
+```
+
+2. 设置公开/私有：POST /api/question-bank/{item_id}/public。
+
+```json
+{
+  "is_public": true
+}
+```
+
+### 4.9.9 使用情况
+
+1. GET /api/question-bank/{item_id}/usage。
+2. 返回使用该题目（任何版本）的问卷列表。
+
+### 4.9.10 跨问卷统计
+
+1. GET /api/question-bank/{item_id}/cross-stats。
+2. 返回该题目在所有问卷中的聚合统计结果，包括涉及问卷数、总回答数、按题型聚合统计。
+
+## 4.10 常见错误示例
 
 1. 401：未登录或 token 无效。
 2. 404：问卷、题目、规则不存在。

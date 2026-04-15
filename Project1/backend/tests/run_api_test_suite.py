@@ -91,17 +91,26 @@ class TestRunner:
         self.user1_username = f"user1_{self.seed}"
         self.user2_username = f"user2_{self.seed}"
         self.auth_username = f"auth_{self.seed}"
+        self.sharee_username = f"sharee_{self.seed}"
         self.password = "Passw0rd!"
 
         self.owner_token = ""
         self.user1_token = ""
         self.user2_token = ""
+        self.sharee_token = ""
 
         self.survey_id = ""
         self.survey_slug = ""
         self.q1_id = ""
         self.q2_id = ""
         self.q3_id = ""
+
+        # 第二阶段题库测试数据
+        self.bank_item_id = ""
+        self.bank_chain_id = ""
+        self.bank_v2_id = ""
+        self.bank_v1_id = ""
+        self.sharee_survey_id = ""
 
     def check(self, condition: bool, message: str) -> None:
         if condition:
@@ -521,11 +530,237 @@ class TestRunner:
         self.check(anonymous_ok, "匿名提交不返回用户名")
         self.check(named_ok, "非匿名提交返回用户名")
 
+    # ── 第二阶段新增用例 TC-11 ~ TC-18 ──
+
+    def tc_11_bank_save_and_list(self) -> None:
+        payload = {
+            "type": "single_choice",
+            "title": "你的年级",
+            "options": [
+                {"key": "A", "label": "大一"},
+                {"key": "B", "label": "大二"},
+                {"key": "C", "label": "大三"},
+                {"key": "D", "label": "大四"},
+            ],
+            "is_public": False,
+            "version_note": "初始版本",
+        }
+        save_res = self.client.request("POST", "/question-bank", payload=payload, token=self.owner_token)
+        self.check_success(save_res, "保存题目到题库成功", expected_status=201)
+
+        data: dict[str, Any] = {}
+        if isinstance(save_res.body, dict):
+            data = save_res.body.get("data") or {}
+        self.bank_item_id = data.get("id", "")
+        self.bank_chain_id = data.get("chain_id", "")
+        self.bank_v1_id = self.bank_item_id
+        self.check(bool(self.bank_item_id), "题库条目 ID 获取成功")
+        self.check(data.get("version") == 1, "初始版本号为 1")
+        self.check(data.get("is_latest") is True, "初始版本 is_latest=true")
+
+        list_res = self.client.request("GET", "/question-bank", token=self.owner_token)
+        self.check_success(list_res, "查询我的题库成功")
+        items: list[Any] = []
+        if isinstance(list_res.body, dict):
+            items = list_res.body.get("data") or []
+        found = any(item.get("id") == self.bank_item_id for item in items)
+        self.check(found, "题库列表中包含刚保存的题目")
+
+    def tc_12_bank_import_to_survey(self) -> None:
+        create_res = self.client.request("POST", "/surveys", payload={
+            "title": "题库导入测试问卷",
+            "description": "第二阶段测试",
+            "allow_anonymous": True,
+            "allow_multiple_submissions": True,
+        }, token=self.owner_token)
+        self.check_success(create_res, "创建导入目标问卷成功", expected_status=201)
+        import_survey_id = ""
+        if isinstance(create_res.body, dict):
+            import_survey_id = ((create_res.body.get("data") or {}).get("id", ""))
+        self.check(bool(import_survey_id), "导入目标问卷 ID 获取成功")
+
+        import_res = self.client.request(
+            "POST",
+            f"/surveys/{import_survey_id}/questions/import",
+            payload={"item_id": self.bank_item_id, "order": 1, "required": True},
+            token=self.owner_token,
+        )
+        self.check_success(import_res, "从题库导入题目成功", expected_status=201)
+
+        imported: dict[str, Any] = {}
+        if isinstance(import_res.body, dict):
+            imported = import_res.body.get("data") or {}
+        self.check(imported.get("title") == "你的年级", "导入题目标题一致")
+        self.check(imported.get("bank_item_id") == self.bank_item_id, "导入记录 bank_item_id 非空")
+        self.check(imported.get("bank_version") == 1, "导入记录 bank_version=1")
+
+        q_list_res = self.client.request("GET", f"/surveys/{import_survey_id}/questions", token=self.owner_token)
+        self.check_success(q_list_res, "查询导入后题目列表成功")
+
+    def tc_13_bank_version_management(self) -> None:
+        new_ver_res = self.client.request(
+            "POST",
+            f"/question-bank/{self.bank_item_id}/new-version",
+            payload={"title": "你的年级（含研究生）", "version_note": "增加研究生选项"},
+            token=self.owner_token,
+        )
+        self.check_success(new_ver_res, "创建新版本 v2 成功", expected_status=201)
+        new_ver_data: dict[str, Any] = {}
+        if isinstance(new_ver_res.body, dict):
+            new_ver_data = new_ver_res.body.get("data") or {}
+        self.bank_v2_id = new_ver_data.get("id", "")
+        self.check(new_ver_data.get("version") == 2, "新版本号为 2")
+        self.check(new_ver_data.get("title") == "你的年级（含研究生）", "新版本标题正确")
+        self.check(new_ver_data.get("is_latest") is True, "新版本 is_latest=true")
+
+        versions_res = self.client.request("GET", f"/question-bank/{self.bank_item_id}/versions", token=self.owner_token)
+        self.check_success(versions_res, "查询版本历史成功")
+        versions: list[Any] = []
+        if isinstance(versions_res.body, dict):
+            versions = versions_res.body.get("data") or []
+        self.check(len(versions) == 2, "版本历史返回 2 条记录")
+
+        restore_res = self.client.request(
+            "POST",
+            f"/question-bank/{self.bank_v2_id}/restore",
+            payload={"version_item_id": self.bank_v1_id},
+            token=self.owner_token,
+        )
+        self.check_success(restore_res, "恢复 v1 成功")
+        restore_data: dict[str, Any] = {}
+        if isinstance(restore_res.body, dict):
+            restore_data = restore_res.body.get("data") or {}
+        self.check(restore_data.get("version") == 3, "恢复后版本号为 3")
+        self.check(restore_data.get("title") == "你的年级", "恢复后标题与 v1 一致")
+
+    def tc_14_bank_share(self) -> None:
+        share_res = self.client.request(
+            "POST",
+            f"/question-bank/{self.bank_item_id}/share",
+            payload={"usernames": [self.sharee_username]},
+            token=self.owner_token,
+        )
+        self.check_success(share_res, "共享题目给用户E成功")
+
+        shared_list_res = self.client.request("GET", "/question-bank/shared", token=self.sharee_token)
+        self.check_success(shared_list_res, "用户E查询共享题目成功")
+        shared_items: list[Any] = []
+        if isinstance(shared_list_res.body, dict):
+            shared_items = shared_list_res.body.get("data") or []
+        found = any(item.get("title") == "你的年级" for item in shared_items)
+        self.check(found, "用户E在共享列表中看到该题目")
+
+        create_res = self.client.request("POST", "/surveys", payload={
+            "title": "用户E的问卷",
+            "allow_anonymous": True,
+            "allow_multiple_submissions": True,
+        }, token=self.sharee_token)
+        if isinstance(create_res.body, dict):
+            self.sharee_survey_id = ((create_res.body.get("data") or {}).get("id", ""))
+
+        import_res = self.client.request(
+            "POST",
+            f"/surveys/{self.sharee_survey_id}/questions/import",
+            payload={"item_id": self.bank_item_id, "order": 1, "required": False},
+            token=self.sharee_token,
+        )
+        self.check_success(import_res, "用户E导入共享题目成功", expected_status=201)
+
+    def tc_15_bank_public(self) -> None:
+        public_res = self.client.request(
+            "POST",
+            f"/question-bank/{self.bank_item_id}/public",
+            payload={"is_public": True},
+            token=self.owner_token,
+        )
+        self.check_success(public_res, "设为公开成功")
+
+        public_list_res = self.client.request("GET", "/question-bank/public", token=self.sharee_token)
+        self.check_success(public_list_res, "查询公共题库成功")
+        public_items: list[Any] = []
+        if isinstance(public_list_res.body, dict):
+            public_items = public_list_res.body.get("data") or []
+        found = any(item.get("title") == "你的年级" for item in public_items)
+        self.check(found, "公共题库中包含公开题目")
+
+        private_res = self.client.request(
+            "POST",
+            f"/question-bank/{self.bank_item_id}/public",
+            payload={"is_public": False},
+            token=self.owner_token,
+        )
+        self.check_success(private_res, "设为私有成功")
+
+        public_list_res2 = self.client.request("GET", "/question-bank/public", token=self.sharee_token)
+        self.check_success(public_list_res2, "再次查询公共题库成功")
+        public_items2: list[Any] = []
+        if isinstance(public_list_res2.body, dict):
+            public_items2 = public_list_res2.body.get("data") or []
+        gone = not any(item.get("id") == self.bank_item_id for item in public_items2)
+        self.check(gone, "设为私有后公共题库不再包含该题目")
+
+    def tc_16_bank_usage(self) -> None:
+        usage_res = self.client.request(
+            "GET",
+            f"/question-bank/{self.bank_item_id}/usage",
+            token=self.owner_token,
+        )
+        self.check_success(usage_res, "查询题库使用情况成功")
+        usage_data: list[Any] = []
+        if isinstance(usage_res.body, dict):
+            raw = usage_res.body.get("data")
+            if isinstance(raw, list):
+                usage_data = raw
+        self.check(isinstance(usage_data, list), "使用情况返回数组")
+        self.check(len(usage_data) >= 1, "至少有一份问卷使用了该题目")
+        if usage_data:
+            first = usage_data[0]
+            self.check("survey_id" in first and "survey_title" in first, "使用情况包含 survey_id 和 survey_title")
+            self.check("bank_version" in first, "使用情况包含 bank_version")
+
+    def tc_17_bank_cross_stats(self) -> None:
+        cross_res = self.client.request(
+            "GET",
+            f"/question-bank/{self.bank_item_id}/cross-stats",
+            token=self.owner_token,
+        )
+        self.check_success(cross_res, "查询跨问卷统计成功")
+        cross_data: dict[str, Any] = {}
+        if isinstance(cross_res.body, dict):
+            cross_data = cross_res.body.get("data") or {}
+        self.check(isinstance(cross_data.get("total_surveys"), int), "total_surveys 为整数")
+        self.check(isinstance(cross_data.get("total_submissions"), int), "total_submissions 为整数")
+        self.check("stats" in cross_data, "返回 stats 字段")
+
+    def tc_18_bank_version_isolation(self) -> None:
+        new_ver_res = self.client.request(
+            "POST",
+            f"/question-bank/{self.bank_item_id}/new-version",
+            payload={"title": "版本隔离测试标题", "version_note": "测试版本隔离"},
+            token=self.owner_token,
+        )
+        self.check_success(new_ver_res, "创建版本隔离测试的新版本成功", expected_status=201)
+        new_ver_data: dict[str, Any] = {}
+        if isinstance(new_ver_res.body, dict):
+            new_ver_data = new_ver_res.body.get("data") or {}
+        self.check(new_ver_data.get("title") == "版本隔离测试标题", "新版本标题已修改")
+
+        q_list_res = self.client.request("GET", f"/surveys/{self.survey_id}/questions", token=self.owner_token)
+        self.check_success(q_list_res, "查询已发布问卷题目成功")
+        questions: list[Any] = []
+        if isinstance(q_list_res.body, dict):
+            questions = q_list_res.body.get("data") or []
+        affected = any(q.get("title") == "版本隔离测试标题" for q in questions)
+        self.check(not affected, "已发布问卷题目不受题库修改影响（版本隔离）")
+
     def cleanup(self) -> None:
         if not self.survey_id:
             return
         delete_res = self.client.request("DELETE", f"/surveys/{self.survey_id}", token=self.owner_token)
         self.check_success(delete_res, "清理测试问卷成功")
+        if self.sharee_survey_id:
+            cleanup_res = self.client.request("DELETE", f"/surveys/{self.sharee_survey_id}", token=self.sharee_token)
+            self.check_success(cleanup_res, "清理用户E测试问卷成功")
 
     def run(self) -> int:
         print("=== API 自动化测试开始 ===")
@@ -536,6 +771,7 @@ class TestRunner:
         self.owner_token = self.register_and_login(self.owner_username)
         self.user1_token = self.register_and_login(self.user1_username)
         self.user2_token = self.register_and_login(self.user2_username)
+        self.sharee_token = self.register_and_login(self.sharee_username)
 
         self.run_case("TC-01", "用户注册与登录", self.tc_01_auth_register_login)
         self.run_case("TC-02", "创建问卷", self.tc_02_create_survey)
@@ -547,6 +783,16 @@ class TestRunner:
         self.run_case("TC-08", "非草稿编辑拦截", self.tc_08_non_draft_edit_block)
         self.run_case("TC-09", "发布关闭不可回草稿", self.tc_09_no_back_to_draft)
         self.run_case("TC-10", "统计用户名可见性", self.tc_10_username_visibility)
+
+        # 第二阶段新增用例
+        self.run_case("TC-11", "【第二阶段】题库保存与列表", self.tc_11_bank_save_and_list)
+        self.run_case("TC-12", "【第二阶段】从题库导入到问卷", self.tc_12_bank_import_to_survey)
+        self.run_case("TC-13", "【第二阶段】题库版本管理", self.tc_13_bank_version_management)
+        self.run_case("TC-14", "【第二阶段】题目共享", self.tc_14_bank_share)
+        self.run_case("TC-15", "【第二阶段】题目公开与公共题库", self.tc_15_bank_public)
+        self.run_case("TC-16", "【第二阶段】题库使用情况查询", self.tc_16_bank_usage)
+        self.run_case("TC-17", "【第二阶段】跨问卷统计", self.tc_17_bank_cross_stats)
+        self.run_case("TC-18", "【第二阶段】已发布问卷不受影响", self.tc_18_bank_version_isolation)
         self.cleanup()
 
         self.print_case_summary()
