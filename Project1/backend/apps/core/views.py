@@ -290,5 +290,7 @@ class QuestionBankUsageView(APIView):
 
 class QuestionBankCrossStatsView(APIView):
     def get(self, request, item_id: str):
-        data = get_bank_cross_stats(request.user.id, item_id)
+        version_param = request.query_params.get("version")
+        version = int(version_param) if version_param else None
+        data = get_bank_cross_stats(request.user.id, item_id, version=version)
         return ok(data=data)

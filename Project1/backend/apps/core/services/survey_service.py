@@ -1052,7 +1052,7 @@ def get_bank_item_usage(owner_id: str, item_id: str) -> list[dict[str, Any]]:
     return result
 
 
-def get_bank_cross_stats(owner_id: str, item_id: str) -> dict[str, Any]:
+def get_bank_cross_stats(owner_id: str, item_id: str, version: int | None = None) -> dict[str, Any]:
     bank = get_collection("question_bank")
     answers_col = get_collection("answers")
     questions_col = get_collection("questions")
@@ -1064,11 +1064,25 @@ def get_bank_cross_stats(owner_id: str, item_id: str) -> dict[str, Any]:
         raise NotFound("题库题目不存在")
 
     chain_id = item["chain_id"]
-    related_questions = list(questions_col.find({"bank_chain_id": chain_id}))
+
+    # Collect all distinct versions used by imported questions
+    all_related = list(questions_col.find({"bank_chain_id": chain_id}, {"bank_version": 1}))
+    used_versions = sorted({q.get("bank_version") for q in all_related if q.get("bank_version")})
+
+    # Determine target version
+    latest_version = item["version"]
+    target_version = version if version is not None else latest_version
+
+    query: dict[str, Any] = {"bank_chain_id": chain_id}
+    if target_version is not None:
+        query["bank_version"] = target_version
+    related_questions = list(questions_col.find(query))
 
     if not related_questions:
         return {
             "bank_item": _qbank_to_response(item),
+            "versions": used_versions,
+            "selected_version": target_version,
             "total_surveys": 0,
             "total_submissions": 0,
             "stats": {},
@@ -1086,18 +1100,22 @@ def get_bank_cross_stats(owner_id: str, item_id: str) -> dict[str, Any]:
                 if ans["question_id"] in question_oids:
                     all_answers.append(ans.get("answer"))
 
-    q_type = item["type"]
+    # Use the options from the target version's bank item if available
+    version_item = bank.find_one({"chain_id": chain_id, "version": target_version, "owner_id": owner_oid})
+    ref_item = version_item if version_item else item
+
+    q_type = ref_item["type"]
     stats: dict[str, Any] = {"total_answered": len(all_answers)}
 
     if q_type == "single_choice":
-        counts = {opt["key"]: 0 for opt in item.get("options", [])}
+        counts = {opt["key"]: 0 for opt in ref_item.get("options", [])}
         for ans in all_answers:
             if isinstance(ans, str) and ans in counts:
                 counts[ans] += 1
         stats["option_counts"] = counts
 
     elif q_type == "multi_choice":
-        counts = {opt["key"]: 0 for opt in item.get("options", [])}
+        counts = {opt["key"]: 0 for opt in ref_item.get("options", [])}
         for ans in all_answers:
             if isinstance(ans, list):
                 for a in ans:
@@ -1107,7 +1125,7 @@ def get_bank_cross_stats(owner_id: str, item_id: str) -> dict[str, Any]:
 
     elif q_type == "fill_blank":
         stats["values"] = all_answers
-        if item.get("validation", {}).get("value_type") == "number":
+        if ref_item.get("validation", {}).get("value_type") == "number":
             numeric = []
             for v in all_answers:
                 try:
@@ -1119,6 +1137,8 @@ def get_bank_cross_stats(owner_id: str, item_id: str) -> dict[str, Any]:
 
     return {
         "bank_item": _qbank_to_response(item),
+        "versions": used_versions,
+        "selected_version": target_version,
         "total_surveys": len(survey_ids),
         "total_submissions": len(all_answers),
         "stats": stats,
