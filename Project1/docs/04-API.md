@@ -388,7 +388,8 @@ Authorization: Bearer <token>
 }
 ```
 
-3. 切换版本：POST /api/question-bank/{item_id}/restore。
+3. 编辑题目：PUT /api/question-bank/{item_id}/update。如果版本已被使用，自动创建新版本；未使用的版本直接修改。
+4. 切换版本：POST /api/question-bank/{item_id}/restore。直接切换版本标记，不创建新版本。
 
 说明：直接将目标版本设为最新版本（is_latest=true），不创建新版本。可在已有版本之间自由切换。
 
@@ -418,7 +419,8 @@ Authorization: Bearer <token>
 ### 4.9.9 跨问卷统计
 
 1. GET /api/question-bank/{item_id}/cross-stats。
-2. 返回该题目在所有问卷中的聚合统计结果，包括涉及问卷数、总回答数、按题型聚合统计。
+2. 查询参数：`version_item_id`（可选）—— 传入特定版本的 item_id，则仅统计使用该版本的问卷数据；不传则统计所有版本。
+3. 返回该题目在所有问卷中的聚合统计结果，包括涉及问卷数、总回答数、按题型聚合统计。
 
 ## 4.10 常见错误示例
 

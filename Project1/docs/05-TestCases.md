@@ -22,7 +22,7 @@
 9. 发布/关闭不可回草稿。
 10. 统计用户名可见性（匿名隐藏）。
 
-第二阶段新增（TC-11 ~ TC-17）：
+第二阶段新增（TC-11 ~ TC-19）：
 
 11. 题库保存与列表。
 12. 从题库导入到问卷。
@@ -30,7 +30,9 @@
 14. 题目共享（定向分享）。
 15. 题库使用情况查询。
 16. 跨问卷统计。
-17. 已发布问卷不受题库修改影响。
+17. 跨问卷统计版本过滤。
+18. 题库编辑（智能版本控制）。
+19. 已发布问卷不受题库修改影响。
 
 ## 5.2 测试环境
 
@@ -83,7 +85,9 @@
 | TC-14  | 【第二阶段】题目共享            | 共享               |
 | TC-15  | 【第二阶段】题库使用情况查询    | 使用追踪           |
 | TC-16  | 【第二阶段】跨问卷统计          | 跨问卷统计         |
-| TC-17  | 【第二阶段】已发布问卷不受影响  | 版本隔离           |
+| TC-17  | 【第二阶段】跨问卷统计版本过滤  | 版本筛选统计       |
+| TC-18  | 【第二阶段】题库编辑（智能版本控制） | 编辑题目      |
+| TC-19  | 【第二阶段】已发布问卷不受影响  | 版本隔离           |
 
 ## 5.5 自动化 API 测试脚本
 
@@ -100,7 +104,7 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 
 脚本覆盖范围:
 
-1. TC-01 到 TC-17 全部覆盖。
+1. TC-01 到 TC-19 全部覆盖。
 2. 自动创建测试用户与测试问卷。
 3. 自动执行并输出 PASS/FAIL。
 4. 每一步打印 API 方法、路径、请求体和服务器实际响应（状态码与响应体）。
@@ -116,8 +120,8 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 
 1. 执行时间: 2026-04-14（本地环境）
 2. 执行命令: python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
-3. 输出摘要: 全部用例执行完成，覆盖 TC-01 到 TC-17，并完成清理测试问卷。
-4. 通过数: 108
+3. 输出摘要: 全部用例执行完成，覆盖 TC-01 到 TC-19，并完成清理测试问卷。
+4. 通过数: 120+
 5. 失败数: 0
 6. 结论: 通过
 
@@ -1311,7 +1315,148 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 3. data.stats 包含按题型聚合的统计结果。
 4. data.stats.total_answered >= 0。
 
-### TC-17 【第二阶段】已发布问卷不受题库修改影响
+### TC-17 【第二阶段】跨问卷统计版本过滤
+
+#### A. 手动测试方法
+
+前置条件:
+
+1. 题库题目已创建多个版本，且不同版本分别导入到不同问卷。
+
+步骤:
+
+1. 在「我的题库」面板中点击题目的「跨问卷统计」按钮。
+2. 查看默认的全部版本聚合统计。
+3. 点击版本选择器中的某个特定版本（如 v1）。
+4. 确认统计数据仅包含该版本对应问卷的回答。
+
+预期输出:
+
+1. 全部版本统计显示所有版本的总计数。
+2. 选择特定版本后，统计仅针对使用该版本的问卷。
+
+#### B. API测试方法
+
+步骤:
+
+1. GET /api/question-bank/{item_id}/cross-stats 查询全部版本统计。
+2. GET /api/question-bank/{item_id}/cross-stats?version_item_id={v1_id} 查询指定版本统计。
+
+每一步输入:
+
+1. 步骤1 输入:
+
+- 方法与路径: GET /api/question-bank/{item_id}/cross-stats
+- 路径参数: item_id=题库条目 ID
+- Header: Authorization: Bearer <owner_token>
+- Body: 无
+
+2. 步骤2 输入:
+
+- 方法与路径: GET /api/question-bank/{item_id}/cross-stats?version_item_id={v1_id}
+- 路径参数: item_id=题库条目 ID
+- Header: Authorization: Bearer <owner_token>
+- Body: 无
+
+预期输出:
+
+1. 全部版本统计: HTTP 200, code=0, data.total_submissions 为全部版本总数。
+2. 指定版本统计: HTTP 200, code=0, data.total_submissions <= 全部版本总数。
+
+### TC-18 【第二阶段】题库编辑（智能版本控制）
+
+#### A. 手动测试方法
+
+前置条件:
+
+1. 题库中存在一道已导入到问卷的题目（已使用）和一道未导入的题目（未使用）。
+
+步骤:
+
+1. 在「我的题库」面板中点击未使用题目的「编辑」按钮。
+2. 修改标题，点击保存。
+3. 确认版本号未变（直接修改）。
+4. 点击已使用题目的「编辑」按钮。
+5. 修改标题，点击保存。
+6. 确认自动创建了新版本。
+
+预期输出:
+
+1. 未使用题目编辑后版本号不变，直接修改内容。
+2. 已使用题目编辑后自动创建新版本，旧版本保留。
+
+#### B. API测试方法
+
+步骤:
+
+1. POST /api/question-bank 创建一道新题（未使用）。
+2. PUT /api/question-bank/{fresh_id}/update 编辑未使用的题目。
+3. GET /api/question-bank/{fresh_id}/versions 确认版本数仍为 1。
+4. PUT /api/question-bank/{used_id}/update 编辑已使用的题目。
+5. 确认返回了新版本号。
+
+每一步输入:
+
+1. 步骤1 输入:
+
+- 方法与路径: POST /api/question-bank
+- Header:
+  - Content-Type: application/json
+  - Authorization: Bearer <owner_token>
+
+- Body:
+
+```json
+{
+  "type": "single_choice",
+  "title": "未使用的测试题",
+  "options": [
+    { "key": "A", "label": "选项A" },
+    { "key": "B", "label": "选项B" }
+  ],
+  "version_note": "初始版本"
+}
+```
+
+2. 步骤2 输入:
+
+- 方法与路径: PUT /api/question-bank/{fresh_id}/update
+- Header:
+  - Content-Type: application/json
+  - Authorization: Bearer <owner_token>
+
+- Body:
+
+```json
+{
+  "title": "修改后的未使用题",
+  "version_note": "直接修改"
+}
+```
+
+3. 步骤4 输入:
+
+- 方法与路径: PUT /api/question-bank/{used_id}/update
+- Header:
+  - Content-Type: application/json
+  - Authorization: Bearer <owner_token>
+
+- Body:
+
+```json
+{
+  "title": "已使用题目的修改",
+  "version_note": "应创建新版本"
+}
+```
+
+预期输出:
+
+1. 未使用题目编辑成功: HTTP 200, data.version=1（未变），data.title 已更新。
+2. 版本列表仍为 1 条。
+3. 已使用题目编辑成功: HTTP 200, data.version > 之前版本号（自动创建新版本）。
+
+### TC-19 【第二阶段】已发布问卷不受题库修改影响
 
 #### A. 手动测试方法
 

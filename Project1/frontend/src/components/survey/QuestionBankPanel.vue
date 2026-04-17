@@ -11,7 +11,8 @@ import {
   listQuestionBankApi,
   listSharedBankApi,
   restoreBankVersionApi,
-  shareBankItemApi
+  shareBankItemApi,
+  updateBankItemApi
 } from '../../api/survey'
 
 const props = defineProps({
@@ -45,6 +46,15 @@ const shareUsernames = ref('')
 
 // New version form
 const newVersionForm = ref({ title: '', version_note: '' })
+
+// Edit form
+const editForm = ref({ title: '', version_note: '' })
+const editVersions = ref([])
+const editSelectedVersion = ref(null)
+
+// Cross-stats version selector
+const crossStatsVersions = ref([])
+const crossStatsSelectedVersion = ref(null)
 
 const typeLabel = (type) => {
   const map = { single_choice: '单选', multi_choice: '多选', fill_blank: '填空' }
@@ -171,14 +181,68 @@ const showUsage = async (item) => {
   }
 }
 
-const showCrossStats = async (item) => {
+const showCrossStats = async (item, versionItemId = null) => {
   detailMode.value = 'cross-stats'
   detailItem.value = item
   detailData.value = null
+  crossStatsSelectedVersion.value = versionItemId
   try {
-    detailData.value = await getBankCrossStatsApi(item.id)
+    const [stats, versions] = await Promise.all([
+      getBankCrossStatsApi(item.id, versionItemId),
+      listBankVersionsApi(item.id)
+    ])
+    detailData.value = stats
+    crossStatsVersions.value = versions
   } catch (error) {
     errorMessage.value = error.message
+  }
+}
+
+const changeCrossStatsVersion = async (versionItemId) => {
+  if (!detailItem.value) return
+  crossStatsSelectedVersion.value = versionItemId || null
+  try {
+    detailData.value = await getBankCrossStatsApi(detailItem.value.id, versionItemId || null)
+  } catch (error) {
+    errorMessage.value = error.message
+  }
+}
+
+const showEdit = async (item) => {
+  detailMode.value = 'edit'
+  detailItem.value = item
+  editForm.value = { title: item.title, version_note: item.version_note || '' }
+  editSelectedVersion.value = item.id
+  try {
+    editVersions.value = await listBankVersionsApi(item.id)
+  } catch (error) {
+    errorMessage.value = error.message
+  }
+}
+
+const selectEditVersion = (version) => {
+  editSelectedVersion.value = version.id
+  editForm.value = { title: version.title, version_note: version.version_note || '' }
+}
+
+const submitEdit = async () => {
+  loading.value = true
+  message.value = ''
+  errorMessage.value = ''
+  try {
+    const payload = {}
+    if (editForm.value.title.trim()) payload.title = editForm.value.title.trim()
+    if (editForm.value.version_note.trim()) payload.version_note = editForm.value.version_note.trim()
+    const result = await updateBankItemApi(editSelectedVersion.value, payload)
+    message.value = result.version !== detailItem.value.version
+      ? `版本已被使用，已自动创建新版本 v${result.version}`
+      : '题目已更新'
+    closeDetail()
+    await fetchCurrentTab()
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    loading.value = false
   }
 }
 
@@ -288,6 +352,7 @@ onMounted(() => {
             <button class="btn-primary shrink-0 text-xs" :disabled="loading" @click="importItem(item)">导入</button>
           </div>
           <div class="mt-2 flex flex-wrap gap-1.5">
+            <button class="rounded-lg bg-emerald-100 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-200" @click="showEdit(item)">编辑</button>
             <button class="rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-600 hover:bg-slate-200" @click="showNewVersion(item)">新版本</button>
             <button class="rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-600 hover:bg-slate-200" @click="showVersions(item)">历史</button>
             <button class="rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-600 hover:bg-slate-200" @click="showShare(item)">共享</button>
@@ -329,6 +394,7 @@ onMounted(() => {
           <template v-if="detailMode === 'usage'">使用情况</template>
           <template v-if="detailMode === 'cross-stats'">跨问卷统计</template>
           <template v-if="detailMode === 'new-version'">创建新版本</template>
+          <template v-if="detailMode === 'edit'">编辑题目</template>
         </h4>
         <button class="text-xs text-slate-500 hover:text-slate-700" @click="closeDetail">关闭</button>
       </div>
@@ -379,8 +445,53 @@ onMounted(() => {
         </div>
       </div>
 
+      <!-- Edit Panel -->
+      <div v-if="detailMode === 'edit'" class="mt-3 space-y-3">
+        <div v-if="editVersions.length > 0" class="space-y-1">
+          <p class="text-xs font-semibold text-slate-600">选择要编辑的版本</p>
+          <div class="flex flex-wrap gap-1.5">
+            <button v-for="v in editVersions" :key="v.id"
+              class="rounded-lg px-2 py-1 text-xs transition-colors"
+              :class="editSelectedVersion === v.id ? 'bg-ocean text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+              @click="selectEditVersion(v)">
+              v{{ v.version }}
+              <span v-if="v.is_latest" class="ml-0.5">(最新)</span>
+            </button>
+          </div>
+        </div>
+        <div class="space-y-2">
+          <input v-model="editForm.title" class="input" placeholder="题目标题" />
+          <input v-model="editForm.version_note" class="input" placeholder="版本说明（可选）" />
+          <p class="text-xs text-slate-400">
+            提示：如果该版本已被问卷使用，系统会自动创建新版本；未使用的版本将直接修改。
+          </p>
+          <div class="flex gap-2">
+            <button class="btn-primary text-xs" :disabled="loading" @click="submitEdit">保存</button>
+            <button class="btn-secondary text-xs" @click="closeDetail">取消</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Cross Stats -->
       <div v-if="detailMode === 'cross-stats' && detailData" class="mt-3 space-y-3">
+        <!-- Version selector for cross-stats -->
+        <div v-if="crossStatsVersions.length > 1" class="space-y-1">
+          <p class="text-xs font-semibold text-slate-600">选择统计版本范围</p>
+          <div class="flex flex-wrap gap-1.5">
+            <button
+              class="rounded-lg px-2 py-1 text-xs transition-colors"
+              :class="!crossStatsSelectedVersion ? 'bg-ocean text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+              @click="changeCrossStatsVersion(null)">
+              全部版本
+            </button>
+            <button v-for="v in crossStatsVersions" :key="v.id"
+              class="rounded-lg px-2 py-1 text-xs transition-colors"
+              :class="crossStatsSelectedVersion === v.id ? 'bg-ocean text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+              @click="changeCrossStatsVersion(v.id)">
+              v{{ v.version }}
+            </button>
+          </div>
+        </div>
         <div class="rounded-lg border border-slate-200 bg-white p-3">
           <p class="text-sm font-medium">跨问卷汇总</p>
           <p class="text-xs text-slate-500">

@@ -11,6 +11,7 @@ from .serializers import (
     QuestionBankNewVersionSerializer,
     QuestionBankRestoreSerializer,
     QuestionBankShareSerializer,
+    QuestionBankUpdateSerializer,
     QuestionCreateSerializer,
     QuestionUpdateSerializer,
     RegisterSerializer,
@@ -47,6 +48,7 @@ from .services.survey_service import (
     restore_bank_version,
     share_bank_item,
     submit_survey,
+    update_bank_item,
     update_question,
     update_survey,
     update_survey_status,
@@ -288,7 +290,16 @@ class QuestionBankUsageView(APIView):
         return ok(data=data)
 
 
+class QuestionBankUpdateView(APIView):
+    def put(self, request, item_id: str):
+        serializer = QuestionBankUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = update_bank_item(request.user.id, item_id, serializer.validated_data)
+        return ok(data=data, message="题库题目已更新")
+
+
 class QuestionBankCrossStatsView(APIView):
     def get(self, request, item_id: str):
-        data = get_bank_cross_stats(request.user.id, item_id)
+        version_item_id = request.query_params.get("version_item_id")
+        data = get_bank_cross_stats(request.user.id, item_id, version_item_id)
         return ok(data=data)

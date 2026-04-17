@@ -223,6 +223,14 @@ class QuestionBankShareSerializer(serializers.Serializer):
     usernames = serializers.ListField(child=serializers.CharField(max_length=50), min_length=1)
 
 
+class QuestionBankUpdateSerializer(serializers.Serializer):
+    title = serializers.CharField(max_length=300, required=False)
+    type = serializers.ChoiceField(choices=QUESTION_TYPES, required=False)
+    options = serializers.ListField(required=False)
+    validation = serializers.DictField(required=False)
+    version_note = serializers.CharField(max_length=500, required=False, allow_blank=True)
+
+
 class QuestionBankRestoreSerializer(serializers.Serializer):
     version_item_id = serializers.CharField()
 

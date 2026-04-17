@@ -46,7 +46,11 @@ export const shareBankItemApi = (itemId, usernames) =>
 
 // Question Bank - Usage & Stats
 export const getBankUsageApi = (itemId) => http.get(`/question-bank/${itemId}/usage`);
-export const getBankCrossStatsApi = (itemId) => http.get(`/question-bank/${itemId}/cross-stats`);
+export const updateBankItemApi = (itemId, data) => http.put(`/question-bank/${itemId}/update`, data);
+export const getBankCrossStatsApi = (itemId, versionItemId) => {
+  const params = versionItemId ? { version_item_id: versionItemId } : {};
+  return http.get(`/question-bank/${itemId}/cross-stats`, { params });
+};
 
 // Import
 export const importQuestionFromBankApi = (surveyId, payload) =>

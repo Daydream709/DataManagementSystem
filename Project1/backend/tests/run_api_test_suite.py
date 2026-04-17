@@ -722,7 +722,103 @@ class TestRunner:
         self.check(isinstance(cross_data.get("total_submissions"), int), "total_submissions 为整数")
         self.check("stats" in cross_data, "返回 stats 字段")
 
-    def tc_17_bank_version_isolation(self) -> None:
+    def tc_17_bank_cross_stats_version_filter(self) -> None:
+        # First, get all versions
+        versions_res = self.client.request(
+            "GET",
+            f"/question-bank/{self.bank_item_id}/versions",
+            token=self.owner_token,
+        )
+        self.check_success(versions_res, "查询版本列表（用于统计过滤）成功")
+        versions: list[Any] = []
+        if isinstance(versions_res.body, dict):
+            versions = versions_res.body.get("data") or []
+        self.check(len(versions) >= 2, "版本数量 >= 2，可测试版本过滤")
+
+        # Cross-stats without filter (all versions)
+        cross_all_res = self.client.request(
+            "GET",
+            f"/question-bank/{self.bank_item_id}/cross-stats",
+            token=self.owner_token,
+        )
+        self.check_success(cross_all_res, "跨问卷统计（全部版本）成功")
+        all_data: dict[str, Any] = {}
+        if isinstance(cross_all_res.body, dict):
+            all_data = cross_all_res.body.get("data") or {}
+        all_total = all_data.get("total_submissions", 0)
+
+        # Cross-stats with specific version filter
+        if versions:
+            v1_id = versions[0]["id"]
+            cross_v1_res = self.client.request(
+                "GET",
+                f"/question-bank/{self.bank_item_id}/cross-stats?version_item_id={v1_id}",
+                token=self.owner_token,
+            )
+            self.check_success(cross_v1_res, "跨问卷统计（指定版本）成功")
+            v1_data: dict[str, Any] = {}
+            if isinstance(cross_v1_res.body, dict):
+                v1_data = cross_v1_res.body.get("data") or {}
+            self.check(isinstance(v1_data.get("total_submissions"), int), "指定版本统计返回 total_submissions")
+
+    def tc_18_bank_update(self) -> None:
+        # Test 1: Update an unused version (should modify directly)
+        # First, create a fresh bank item that has NOT been imported anywhere
+        fresh_payload = {
+            "type": "single_choice",
+            "title": "未使用的测试题",
+            "options": [
+                {"key": "A", "label": "选项A"},
+                {"key": "B", "label": "选项B"},
+            ],
+            "version_note": "初始版本",
+        }
+        fresh_res = self.client.request("POST", "/question-bank", payload=fresh_payload, token=self.owner_token)
+        self.check_success(fresh_res, "创建未使用的题库题目成功", expected_status=201)
+        fresh_data: dict[str, Any] = {}
+        if isinstance(fresh_res.body, dict):
+            fresh_data = fresh_res.body.get("data") or {}
+        fresh_id = fresh_data.get("id", "")
+        self.check(bool(fresh_id), "未使用题目 ID 获取成功")
+
+        # Update unused version - should modify directly
+        update_unused_res = self.client.request(
+            "PUT",
+            f"/question-bank/{fresh_id}/update",
+            payload={"title": "修改后的未使用题", "version_note": "直接修改"},
+            token=self.owner_token,
+        )
+        self.check_success(update_unused_res, "编辑未使用的题库题目成功")
+        update_data: dict[str, Any] = {}
+        if isinstance(update_unused_res.body, dict):
+            update_data = update_unused_res.body.get("data") or {}
+        self.check(update_data.get("title") == "修改后的未使用题", "未使用版本标题已直接修改")
+        self.check(update_data.get("version") == 1, "未使用版本号仍为 1（未创建新版本）")
+
+        # Verify version count is still 1
+        versions_res = self.client.request("GET", f"/question-bank/{fresh_id}/versions", token=self.owner_token)
+        self.check_success(versions_res, "查询未使用题目的版本列表成功")
+        versions: list[Any] = []
+        if isinstance(versions_res.body, dict):
+            versions = versions_res.body.get("data") or []
+        self.check(len(versions) == 1, "未使用版本编辑后版本数仍为 1")
+
+        # Test 2: Update a used version (should create new version automatically)
+        # The bank_item_id was imported in TC-12, so it's "used"
+        update_used_res = self.client.request(
+            "PUT",
+            f"/question-bank/{self.bank_item_id}/update",
+            payload={"title": "已使用题目的修改", "version_note": "应创建新版本"},
+            token=self.owner_token,
+        )
+        self.check_success(update_used_res, "编辑已使用的题库题目成功")
+        used_update_data: dict[str, Any] = {}
+        if isinstance(update_used_res.body, dict):
+            used_update_data = update_used_res.body.get("data") or {}
+        new_version = used_update_data.get("version")
+        self.check(isinstance(new_version, int) and new_version > 2, f"已使用版本编辑后自动创建新版本（版本号 {new_version}）")
+
+    def tc_19_bank_version_isolation(self) -> None:
         new_ver_res = self.client.request(
             "POST",
             f"/question-bank/{self.bank_item_id}/new-version",
@@ -781,7 +877,9 @@ class TestRunner:
         self.run_case("TC-14", "【第二阶段】题目共享", self.tc_14_bank_share)
         self.run_case("TC-15", "【第二阶段】题库使用情况查询", self.tc_15_bank_usage)
         self.run_case("TC-16", "【第二阶段】跨问卷统计", self.tc_16_bank_cross_stats)
-        self.run_case("TC-17", "【第二阶段】已发布问卷不受影响", self.tc_17_bank_version_isolation)
+        self.run_case("TC-17", "【第二阶段】跨问卷统计版本过滤", self.tc_17_bank_cross_stats_version_filter)
+        self.run_case("TC-18", "【第二阶段】题库编辑（智能版本控制）", self.tc_18_bank_update)
+        self.run_case("TC-19", "【第二阶段】已发布问卷不受影响", self.tc_19_bank_version_isolation)
         self.cleanup()
 
         self.print_case_summary()

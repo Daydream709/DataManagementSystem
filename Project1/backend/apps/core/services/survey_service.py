@@ -934,6 +934,46 @@ def list_bank_versions(owner_id: str, item_id: str) -> list[dict[str, Any]]:
     return [_qbank_to_response(doc) for doc in docs]
 
 
+def _is_bank_version_in_use(bank_item_id: ObjectId) -> bool:
+    """检查题库某个版本是否已被导入到问卷中使用"""
+    questions_col = get_collection("questions")
+    return questions_col.find_one({"bank_item_id": bank_item_id}) is not None
+
+
+def update_bank_item(owner_id: str, item_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """编辑题库题目：如果版本已被使用则创建新版本，否则直接修改"""
+    bank = get_collection("question_bank")
+    owner_oid = to_object_id(owner_id, "owner_id")
+    oid = to_object_id(item_id, "item_id")
+
+    current = bank.find_one({"_id": oid, "owner_id": owner_oid})
+    if not current:
+        raise NotFound("题库题目不存在")
+
+    if _is_bank_version_in_use(oid):
+        # 版本已被使用，自动创建新版本
+        return create_new_bank_version(owner_id, item_id, payload)
+    else:
+        # 版本未被使用，直接修改
+        update_data = {"updated_at": _now()}
+        if "title" in payload:
+            update_data["title"] = payload["title"]
+        if "type" in payload:
+            update_data["type"] = payload["type"]
+        if "options" in payload:
+            update_data["options"] = payload["options"]
+        if "validation" in payload:
+            update_data["validation"] = payload["validation"]
+        if "version_note" in payload:
+            update_data["version_note"] = payload["version_note"]
+
+        bank.update_one({"_id": oid}, {"$set": update_data})
+        updated = bank.find_one({"_id": oid})
+        if not updated:
+            raise NotFound("题目更新后未找到")
+        return _qbank_to_response(updated)
+
+
 def restore_bank_version(owner_id: str, item_id: str, target_version_item_id: str) -> dict[str, Any]:
     bank = get_collection("question_bank")
     owner_oid = to_object_id(owner_id, "owner_id")
@@ -1054,7 +1094,7 @@ def get_bank_item_usage(owner_id: str, item_id: str) -> list[dict[str, Any]]:
     return result
 
 
-def get_bank_cross_stats(owner_id: str, item_id: str) -> dict[str, Any]:
+def get_bank_cross_stats(owner_id: str, item_id: str, version_item_id: str | None = None) -> dict[str, Any]:
     bank = get_collection("question_bank")
     answers_col = get_collection("answers")
     questions_col = get_collection("questions")
@@ -1065,8 +1105,24 @@ def get_bank_cross_stats(owner_id: str, item_id: str) -> dict[str, Any]:
     if not item:
         raise NotFound("题库题目不存在")
 
+    # 如果指定了版本，使用该版本的数据进行统计
+    stats_item = item
+    if version_item_id:
+        version_oid = to_object_id(version_item_id, "version_item_id")
+        version_item = bank.find_one({"_id": version_oid, "chain_id": item["chain_id"]})
+        if not version_item:
+            raise NotFound("指定版本不存在")
+        stats_item = version_item
+
     chain_id = item["chain_id"]
-    related_questions = list(questions_col.find({"bank_chain_id": chain_id}))
+    # 如果指定了版本，只统计使用该版本的问卷题目
+    if version_item_id:
+        related_questions = list(questions_col.find({
+            "bank_chain_id": chain_id,
+            "bank_item_id": stats_item["_id"],
+        }))
+    else:
+        related_questions = list(questions_col.find({"bank_chain_id": chain_id}))
 
     if not related_questions:
         return {
