@@ -619,19 +619,42 @@ class TestRunner:
             versions = versions_res.body.get("data") or []
         self.check(len(versions) == 2, "版本历史返回 2 条记录")
 
+        # 切换回 v1（直接切换，不创建新版本）
         restore_res = self.client.request(
             "POST",
             f"/question-bank/{self.bank_v2_id}/restore",
             payload={"version_item_id": self.bank_v1_id},
             token=self.owner_token,
         )
-        self.check_success(restore_res, "恢复 v1 成功")
+        self.check_success(restore_res, "切换回 v1 成功")
         restore_data: dict[str, Any] = {}
         if isinstance(restore_res.body, dict):
             restore_data = restore_res.body.get("data") or {}
-        self.check(restore_data.get("version") == 1, "恢复后版本号为 1（版本切换，不创建新版本）")
-        self.check(restore_data.get("title") == "你的年级", "恢复后标题与 v1 一致")
-        self.check(restore_data.get("is_latest") is True, "恢复后 v1 is_latest=true")
+        self.check(restore_data.get("version") == 1, "切换后版本号仍为 1（未创建新版本）")
+        self.check(restore_data.get("title") == "你的年级", "切换后标题与 v1 一致")
+        self.check(restore_data.get("is_latest") is True, "切换后 v1 的 is_latest=true")
+
+        # 验证版本总数不变
+        versions_res2 = self.client.request("GET", f"/question-bank/{self.bank_item_id}/versions", token=self.owner_token)
+        self.check_success(versions_res2, "切换后再次查询版本历史成功")
+        versions2: list[Any] = []
+        if isinstance(versions_res2.body, dict):
+            versions2 = versions_res2.body.get("data") or []
+        self.check(len(versions2) == 2, "切换后版本总数仍为 2（未新增版本）")
+
+        # 切换回 v2
+        restore_res2 = self.client.request(
+            "POST",
+            f"/question-bank/{self.bank_v1_id}/restore",
+            payload={"version_item_id": self.bank_v2_id},
+            token=self.owner_token,
+        )
+        self.check_success(restore_res2, "切换回 v2 成功")
+        restore_data2: dict[str, Any] = {}
+        if isinstance(restore_res2.body, dict):
+            restore_data2 = restore_res2.body.get("data") or {}
+        self.check(restore_data2.get("version") == 2, "切换回 v2 后版本号为 2")
+        self.check(restore_data2.get("is_latest") is True, "v2 的 is_latest=true")
 
     def tc_14_bank_share(self) -> None:
         share_res = self.client.request(
@@ -666,7 +689,7 @@ class TestRunner:
         )
         self.check_success(import_res, "用户E导入共享题目成功", expected_status=201)
 
-    def tc_16_bank_usage(self) -> None:
+    def tc_15_bank_usage(self) -> None:
         usage_res = self.client.request(
             "GET",
             f"/question-bank/{self.bank_item_id}/usage",
@@ -685,7 +708,7 @@ class TestRunner:
             self.check("survey_id" in first and "survey_title" in first, "使用情况包含 survey_id 和 survey_title")
             self.check("bank_version" in first, "使用情况包含 bank_version")
 
-    def tc_17_bank_cross_stats(self) -> None:
+    def tc_16_bank_cross_stats(self) -> None:
         cross_res = self.client.request(
             "GET",
             f"/question-bank/{self.bank_item_id}/cross-stats",
@@ -699,7 +722,7 @@ class TestRunner:
         self.check(isinstance(cross_data.get("total_submissions"), int), "total_submissions 为整数")
         self.check("stats" in cross_data, "返回 stats 字段")
 
-    def tc_18_bank_version_isolation(self) -> None:
+    def tc_17_bank_version_isolation(self) -> None:
         new_ver_res = self.client.request(
             "POST",
             f"/question-bank/{self.bank_item_id}/new-version",
@@ -756,9 +779,9 @@ class TestRunner:
         self.run_case("TC-12", "【第二阶段】从题库导入到问卷", self.tc_12_bank_import_to_survey)
         self.run_case("TC-13", "【第二阶段】题库版本管理", self.tc_13_bank_version_management)
         self.run_case("TC-14", "【第二阶段】题目共享", self.tc_14_bank_share)
-        self.run_case("TC-16", "【第二阶段】题库使用情况查询", self.tc_16_bank_usage)
-        self.run_case("TC-17", "【第二阶段】跨问卷统计", self.tc_17_bank_cross_stats)
-        self.run_case("TC-18", "【第二阶段】已发布问卷不受影响", self.tc_18_bank_version_isolation)
+        self.run_case("TC-15", "【第二阶段】题库使用情况查询", self.tc_15_bank_usage)
+        self.run_case("TC-16", "【第二阶段】跨问卷统计", self.tc_16_bank_cross_stats)
+        self.run_case("TC-17", "【第二阶段】已发布问卷不受影响", self.tc_17_bank_version_isolation)
         self.cleanup()
 
         self.print_case_summary()

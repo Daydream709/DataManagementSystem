@@ -171,26 +171,12 @@ const showUsage = async (item) => {
   }
 }
 
-const crossStatsVersion = ref(null)
-
-const showCrossStats = async (item, version) => {
+const showCrossStats = async (item) => {
   detailMode.value = 'cross-stats'
   detailItem.value = item
   detailData.value = null
   try {
-    detailData.value = await getBankCrossStatsApi(item.id, version)
-    crossStatsVersion.value = detailData.value.selected_version
-  } catch (error) {
-    errorMessage.value = error.message
-  }
-}
-
-const switchCrossStatsVersion = async (version) => {
-  if (!detailItem.value) return
-  crossStatsVersion.value = version
-  detailData.value = null
-  try {
-    detailData.value = await getBankCrossStatsApi(detailItem.value.id, version)
+    detailData.value = await getBankCrossStatsApi(item.id)
   } catch (error) {
     errorMessage.value = error.message
   }
@@ -244,7 +230,7 @@ const restoreVersion = async (versionItemId) => {
   errorMessage.value = ''
   try {
     await restoreBankVersionApi(detailItem.value.id, versionItemId)
-    message.value = '版本已恢复'
+    message.value = '版本已切换'
     await showVersions(detailItem.value)
     await fetchCurrentTab()
   } catch (error) {
@@ -313,7 +299,7 @@ onMounted(() => {
         </div>
       </template>
 
-      <!-- Shared tab (includes shared + public items) -->
+      <!-- Shared tab -->
       <template v-if="activeTab === 'shared'">
         <div v-if="sharedItems.length === 0" class="py-4 text-center text-sm text-slate-400">
           暂无他人共享的题目。
@@ -325,6 +311,7 @@ onMounted(() => {
               <p class="text-xs text-slate-500">
                 {{ typeLabel(item.type) }} · {{ summarizeOptions(item) }} · v{{ item.version }}
                 <span class="ml-1 text-slate-400">来自 {{ item.owner_username }}</span>
+                <span class="ml-1 rounded bg-purple-100 px-1.5 py-0.5 text-purple-700">共享</span>
               </p>
             </div>
             <button class="btn-primary shrink-0 text-xs" :disabled="loading" @click="importItem(item)">导入</button>
@@ -365,7 +352,7 @@ onMounted(() => {
               <p class="text-xs text-slate-400">{{ v.created_at?.slice(0, 19).replace('T', ' ') }}</p>
             </div>
             <button v-if="!v.is_latest" class="rounded bg-ocean/10 px-2 py-1 text-xs text-ocean hover:bg-ocean/20"
-              :disabled="loading" @click="restoreVersion(v.id)">恢复</button>
+              :disabled="loading" @click="restoreVersion(v.id)">切换到该版本</button>
           </div>
         </div>
         <div v-if="detailData.length === 0" class="text-sm text-slate-400">无版本记录</div>
@@ -394,37 +381,25 @@ onMounted(() => {
 
       <!-- Cross Stats -->
       <div v-if="detailMode === 'cross-stats' && detailData" class="mt-3 space-y-3">
-        <div class="flex items-center gap-2">
-          <label class="text-xs text-slate-500 shrink-0">统计版本</label>
-          <select
-            class="input py-1 text-xs"
-            :value="crossStatsVersion"
-            @change="switchCrossStatsVersion(Number($event.target.value))"
-          >
-            <option v-for="v in detailData.versions" :key="v" :value="v">v{{ v }}</option>
-          </select>
-        </div>
-
         <div class="rounded-lg border border-slate-200 bg-white p-3">
-          <p class="text-sm font-medium">跨问卷汇总（v{{ detailData.selected_version }}）</p>
+          <p class="text-sm font-medium">跨问卷汇总</p>
           <p class="text-xs text-slate-500">
             涉及 {{ detailData.total_surveys }} 个问卷 · {{ detailData.total_submissions }} 条回答
           </p>
         </div>
 
         <template v-if="detailData.stats">
-          <div v-if="detailData.stats.option_counts" class="space-y-1.5">
+          <div v-if="detailData.stats.option_counts" class="space-y-1">
             <p class="text-xs font-semibold text-slate-600">选项分布</p>
             <div v-for="(count, key) in detailData.stats.option_counts" :key="key"
               class="flex items-center gap-2 text-xs">
-              <span class="w-10 shrink-0 font-medium text-right">{{ key }}</span>
-              <div class="flex-1 h-5 rounded-full bg-slate-100 overflow-hidden">
-                <div
-                  class="h-full rounded-full bg-ocean/40 transition-all"
-                  :style="{ minWidth: count > 0 ? '1.5rem' : '0', width: detailData.stats.total_answered ? Math.max(Math.round(count / detailData.stats.total_answered * 100), count > 0 ? 8 : 0) + '%' : '0%' }"
-                ></div>
+              <span class="w-12 font-medium">{{ key }}</span>
+              <div class="flex-1 rounded-full bg-slate-100">
+                <div class="rounded-full bg-ocean/40 text-right text-ocean" :style="`width: ${detailData.stats.total_answered ? Math.round(count / detailData.stats.total_answered * 100) : 0}%`"
+                  :class="count > 0 ? 'px-2 py-0.5' : 'py-0.5'">
+                  {{ count }}
+                </div>
               </div>
-              <span class="w-8 shrink-0 text-right tabular-nums">{{ count }}</span>
             </div>
           </div>
 

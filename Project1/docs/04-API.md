@@ -340,6 +340,7 @@ Authorization: Bearer <token>
     { "key": "C", "label": "大三" },
     { "key": "D", "label": "大四" }
   ],
+  "is_public": false,
   "version_note": "初始版本"
 }
 ```
@@ -366,7 +367,7 @@ Authorization: Bearer <token>
 }
 ```
 
-4. 支持导入自己题库或他人共享题目。导入时记录 bank_item_id、bank_chain_id、bank_version 到 questions 文档。
+4. 支持导入自己题库或他人共享的题目。导入时记录 bank_item_id、bank_chain_id、bank_version 到 questions 文档。
 
 ### 4.9.5 查看共享给我的题目
 
@@ -387,7 +388,9 @@ Authorization: Bearer <token>
 }
 ```
 
-3. 恢复旧版本：POST /api/question-bank/{item_id}/restore。
+3. 切换版本：POST /api/question-bank/{item_id}/restore。
+
+说明：直接将目标版本设为最新版本（is_latest=true），不创建新版本。可在已有版本之间自由切换。
 
 请求示例：
 

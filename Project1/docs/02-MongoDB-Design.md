@@ -168,7 +168,7 @@ validation 示例：
 
 1. v1: chain_id = v1.\_id, parent_id = null, version = 1, is_latest = true。
 2. 创建 v2: v1.is_latest 设为 false; v2: chain_id = v1.\_id, parent_id = v1.\_id, version = 2, is_latest = true。
-3. 恢复 v1: 将 v2.is_latest 设为 false，v1.is_latest 设为 true，不创建新版本。
+3. 切换到 v1: v2.is_latest 设为 false, v1.is_latest 设为 true。不创建新版本，直接在已有版本间切换。
 
 索引：
 

@@ -82,5 +82,4 @@ def ensure_indexes() -> None:
             [("shared_with", ASCENDING), ("is_latest", ASCENDING)],
             name="idx_qbank_shared_latest",
         )
-
         _indexes_ready = True
