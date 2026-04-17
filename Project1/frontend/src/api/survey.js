@@ -43,13 +43,14 @@ export const restoreBankVersionApi = (itemId, versionItemId) =>
 export const listSharedBankApi = () => http.get("/question-bank/shared");
 export const shareBankItemApi = (itemId, usernames) =>
   http.post(`/question-bank/${itemId}/share`, { usernames });
+export const removeSharedBankApi = (itemId) =>
+  http.post(`/question-bank/${itemId}/remove-shared`);
 
 // Question Bank - Usage & Stats
 export const getBankUsageApi = (itemId) => http.get(`/question-bank/${itemId}/usage`);
 export const updateBankItemApi = (itemId, data) => http.put(`/question-bank/${itemId}/update`, data);
 export const getBankCrossStatsApi = (itemId, versionItemId) => {
-  const params = versionItemId ? { version_item_id: versionItemId } : {};
-  return http.get(`/question-bank/${itemId}/cross-stats`, { params });
+  return http.get(`/question-bank/${itemId}/cross-stats`, { params: { version_item_id: versionItemId } });
 };
 
 // Import

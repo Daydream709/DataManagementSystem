@@ -10,6 +10,7 @@ from .views import (
     QuestionBankDetailView,
     QuestionBankListCreateView,
     QuestionBankNewVersionView,
+    QuestionBankRemoveSharedView,
     QuestionBankRestoreView,
     QuestionBankShareView,
     QuestionBankSharedView,
@@ -57,5 +58,6 @@ urlpatterns = [
     path("question-bank/<str:item_id>/usage", QuestionBankUsageView.as_view()),
     path("question-bank/<str:item_id>/update", QuestionBankUpdateView.as_view()),
     path("question-bank/<str:item_id>/cross-stats", QuestionBankCrossStatsView.as_view()),
+    path("question-bank/<str:item_id>/remove-shared", QuestionBankRemoveSharedView.as_view()),
     path("surveys/<str:survey_id>/questions/import", QuestionImportView.as_view()),
 ]

@@ -346,6 +346,7 @@ Authorization: Bearer <token>
 ```
 
 3. 校验规则与题目接口一致（选择题至少2选项、填空题需 value_type 等）。
+4. 支持 `source_question_id` 字段（可选）：传入原始题目 ID，系统自动将原始题目标记为题库使用来源，使其出现在使用情况列表中。
 
 ### 4.9.3 删除题库题目
 
@@ -373,6 +374,8 @@ Authorization: Bearer <token>
 
 1. GET /api/question-bank/shared。
 2. 返回其他用户共享给当前用户的题目（最新版本）。
+3. 【第二阶段新增】支持收藏共享题目到我的题库：前端调用保存题目接口（POST /api/question-bank），将共享题目的内容复制为用户自己的题库条目。
+4. 【第二阶段新增】支持移除共享题目：POST /api/question-bank/{item_id}/remove-shared。将当前用户从该题目的 shared_with 列表中移除，该题目不再出现在共享列表中。
 
 ### 4.9.6 版本管理
 
@@ -388,7 +391,20 @@ Authorization: Bearer <token>
 }
 ```
 
-3. 编辑题目：PUT /api/question-bank/{item_id}/update。如果版本已被使用，自动创建新版本；未使用的版本直接修改。
+1. 编辑题目：PUT /api/question-bank/{item_id}/update。支持编辑题目内容（标题、题型、选项、校验规则）及版本说明。如果版本已被使用，自动创建新版本；未使用的版本直接修改。请求示例：
+
+```json
+{
+  "title": "修改后的标题",
+  "type": "single_choice",
+  "options": [
+    { "key": "A", "label": "选项A" },
+    { "key": "B", "label": "选项B" }
+  ],
+  "validation": {},
+  "version_note": "修改了选项"
+}
+```
 4. 切换版本：POST /api/question-bank/{item_id}/restore。直接切换版本标记，不创建新版本。
 
 说明：直接将目标版本设为最新版本（is_latest=true），不创建新版本。可在已有版本之间自由切换。
@@ -419,7 +435,7 @@ Authorization: Bearer <token>
 ### 4.9.9 跨问卷统计
 
 1. GET /api/question-bank/{item_id}/cross-stats。
-2. 查询参数：`version_item_id`（可选）—— 传入特定版本的 item_id，则仅统计使用该版本的问卷数据；不传则统计所有版本。
+2. 查询参数：`version_item_id`（必填）—— 传入特定版本的 item_id，仅统计使用该版本的问卷数据。
 3. 返回该题目在所有问卷中的聚合统计结果，包括涉及问卷数、总回答数、按题型聚合统计。
 
 ## 4.10 常见错误示例

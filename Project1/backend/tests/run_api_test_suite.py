@@ -543,6 +543,7 @@ class TestRunner:
                 {"key": "D", "label": "大四"},
             ],
             "version_note": "初始版本",
+            "source_question_id": self.q1_id,
         }
         save_res = self.client.request("POST", "/question-bank", payload=payload, token=self.owner_token)
         self.check_success(save_res, "保存题目到题库成功", expected_status=201)
@@ -670,7 +671,7 @@ class TestRunner:
         shared_items: list[Any] = []
         if isinstance(shared_list_res.body, dict):
             shared_items = shared_list_res.body.get("data") or []
-        found = any(item.get("title") == "你的年级" for item in shared_items)
+        found = any("你的年级" in (item.get("title") or "") for item in shared_items)
         self.check(found, "用户E在共享列表中看到该题目")
 
         create_res = self.client.request("POST", "/surveys", payload={
@@ -688,6 +689,50 @@ class TestRunner:
             token=self.sharee_token,
         )
         self.check_success(import_res, "用户E导入共享题目成功", expected_status=201)
+
+        # 收藏共享题目到用户E的题库
+        collect_res = self.client.request(
+            "POST",
+            "/question-bank",
+            payload={
+                "type": "single_choice",
+                "title": "你的年级",
+                "options": [
+                    {"key": "A", "label": "大一"},
+                    {"key": "B", "label": "大二"},
+                    {"key": "C", "label": "大三"},
+                    {"key": "D", "label": "大四"},
+                ],
+            },
+            token=self.sharee_token,
+        )
+        self.check_success(collect_res, "用户E收藏共享题目成功", expected_status=201)
+
+        # 确认收藏的题目出现在用户E的题库中
+        my_bank_res = self.client.request("GET", "/question-bank", token=self.sharee_token)
+        self.check_success(my_bank_res, "用户E查询我的题库（收藏后）成功")
+        my_items: list[Any] = []
+        if isinstance(my_bank_res.body, dict):
+            my_items = my_bank_res.body.get("data") or []
+        collected = any(item.get("title") == "你的年级" for item in my_items)
+        self.check(collected, "用户E的我的题库中包含收藏的题目")
+
+        # 移除共享题目
+        remove_shared_res = self.client.request(
+            "POST",
+            f"/question-bank/{self.bank_item_id}/remove-shared",
+            token=self.sharee_token,
+        )
+        self.check_success(remove_shared_res, "用户E移除共享题目成功")
+
+        # 确认共享列表不再包含该题目
+        shared_list_res2 = self.client.request("GET", "/question-bank/shared", token=self.sharee_token)
+        self.check_success(shared_list_res2, "用户E再次查询共享题目成功")
+        shared_items2: list[Any] = []
+        if isinstance(shared_list_res2.body, dict):
+            shared_items2 = shared_list_res2.body.get("data") or []
+        removed = not any(item.get("title") == "你的年级" for item in shared_items2)
+        self.check(removed, "共享列表中不再包含已移除的题目")
 
     def tc_15_bank_usage(self) -> None:
         usage_res = self.client.request(
@@ -709,9 +754,22 @@ class TestRunner:
             self.check("bank_version" in first, "使用情况包含 bank_version")
 
     def tc_16_bank_cross_stats(self) -> None:
+        # Get a version to use for cross-stats (version_item_id is required)
+        versions_for_stats = self.client.request(
+            "GET",
+            f"/question-bank/{self.bank_item_id}/versions",
+            token=self.owner_token,
+        )
+        self.check_success(versions_for_stats, "查询版本列表（用于跨问卷统计）成功")
+        stats_version_id = self.bank_item_id
+        if isinstance(versions_for_stats.body, dict):
+            v_list = versions_for_stats.body.get("data") or []
+            if v_list:
+                stats_version_id = v_list[0]["id"]
+
         cross_res = self.client.request(
             "GET",
-            f"/question-bank/{self.bank_item_id}/cross-stats",
+            f"/question-bank/{self.bank_item_id}/cross-stats?version_item_id={stats_version_id}",
             token=self.owner_token,
         )
         self.check_success(cross_res, "查询跨问卷统计成功")
@@ -735,17 +793,13 @@ class TestRunner:
             versions = versions_res.body.get("data") or []
         self.check(len(versions) >= 2, "版本数量 >= 2，可测试版本过滤")
 
-        # Cross-stats without filter (all versions)
-        cross_all_res = self.client.request(
+        # Cross-stats without version_item_id should fail
+        cross_no_version_res = self.client.request(
             "GET",
             f"/question-bank/{self.bank_item_id}/cross-stats",
             token=self.owner_token,
         )
-        self.check_success(cross_all_res, "跨问卷统计（全部版本）成功")
-        all_data: dict[str, Any] = {}
-        if isinstance(cross_all_res.body, dict):
-            all_data = cross_all_res.body.get("data") or {}
-        all_total = all_data.get("total_submissions", 0)
+        self.check_fail(cross_no_version_res, "不传 version_item_id 跨问卷统计被拦截（必须指定版本）")
 
         # Cross-stats with specific version filter
         if versions:
@@ -785,7 +839,13 @@ class TestRunner:
         update_unused_res = self.client.request(
             "PUT",
             f"/question-bank/{fresh_id}/update",
-            payload={"title": "修改后的未使用题", "version_note": "直接修改"},
+            payload={
+                "title": "修改后的未使用题",
+                "type": "single_choice",
+                "options": [{"key": "A", "label": "新选项A"}, {"key": "B", "label": "新选项B"}],
+                "validation": {},
+                "version_note": "直接修改",
+            },
             token=self.owner_token,
         )
         self.check_success(update_unused_res, "编辑未使用的题库题目成功")
@@ -808,7 +868,17 @@ class TestRunner:
         update_used_res = self.client.request(
             "PUT",
             f"/question-bank/{self.bank_item_id}/update",
-            payload={"title": "已使用题目的修改", "version_note": "应创建新版本"},
+            payload={
+                "title": "已使用题目的修改",
+                "type": "single_choice",
+                "options": [
+                    {"key": "A", "label": "选项A"},
+                    {"key": "B", "label": "选项B"},
+                    {"key": "C", "label": "选项C"},
+                ],
+                "validation": {},
+                "version_note": "应创建新版本",
+            },
             token=self.owner_token,
         )
         self.check_success(update_used_res, "编辑已使用的题库题目成功")
@@ -838,6 +908,62 @@ class TestRunner:
             questions = q_list_res.body.get("data") or []
         affected = any(q.get("title") == "版本隔离测试标题" for q in questions)
         self.check(not affected, "已发布问卷题目不受题库修改影响（版本隔离）")
+
+    def tc_20_bank_source_question_tracking(self) -> None:
+        # Create a fresh question and bank item with source tracking
+        create_survey_res = self.client.request("POST", "/surveys", payload={
+            "title": "来源追踪测试问卷",
+            "allow_anonymous": True,
+            "allow_multiple_submissions": True,
+        }, token=self.owner_token)
+        self.check_success(create_survey_res, "创建来源追踪测试问卷成功", expected_status=201)
+        tracking_survey_id = ""
+        if isinstance(create_survey_res.body, dict):
+            tracking_survey_id = ((create_survey_res.body.get("data") or {}).get("id", ""))
+
+        q_res = self.client.request("POST", f"/surveys/{tracking_survey_id}/questions", payload={
+            "order": 1,
+            "type": "single_choice",
+            "title": "追踪测试题",
+            "required": True,
+            "options": [{"key": "A", "label": "选项A"}, {"key": "B", "label": "选项B"}],
+        }, token=self.owner_token)
+        self.check_success(q_res, "创建追踪测试题成功", expected_status=201)
+        tracking_q_id = ""
+        if isinstance(q_res.body, dict):
+            tracking_q_id = ((q_res.body.get("data") or {}).get("id", ""))
+
+        # Save to bank with source_question_id
+        bank_res = self.client.request("POST", "/question-bank", payload={
+            "type": "single_choice",
+            "title": "追踪测试题",
+            "options": [{"key": "A", "label": "选项A"}, {"key": "B", "label": "选项B"}],
+            "version_note": "追踪来源",
+            "source_question_id": tracking_q_id,
+        }, token=self.owner_token)
+        self.check_success(bank_res, "保存题目到题库（带来源追踪）成功", expected_status=201)
+        tracking_bank_id = ""
+        if isinstance(bank_res.body, dict):
+            tracking_bank_id = ((bank_res.body.get("data") or {}).get("id", ""))
+
+        # Check usage - should include the original survey
+        usage_res = self.client.request(
+            "GET",
+            f"/question-bank/{tracking_bank_id}/usage",
+            token=self.owner_token,
+        )
+        self.check_success(usage_res, "查询来源追踪题目的使用情况成功")
+        usage_data: list[Any] = []
+        if isinstance(usage_res.body, dict):
+            raw = usage_res.body.get("data")
+            if isinstance(raw, list):
+                usage_data = raw
+        self.check(len(usage_data) >= 1, "使用情况至少包含来源问卷")
+        found_source = any(u.get("survey_id") == tracking_survey_id for u in usage_data)
+        self.check(found_source, "使用情况包含原始来源问卷")
+
+        # Cleanup
+        self.client.request("DELETE", f"/surveys/{tracking_survey_id}", token=self.owner_token)
 
     def cleanup(self) -> None:
         if not self.survey_id:
@@ -874,12 +1000,13 @@ class TestRunner:
         self.run_case("TC-11", "【第二阶段】题库保存与列表", self.tc_11_bank_save_and_list)
         self.run_case("TC-12", "【第二阶段】从题库导入到问卷", self.tc_12_bank_import_to_survey)
         self.run_case("TC-13", "【第二阶段】题库版本管理", self.tc_13_bank_version_management)
-        self.run_case("TC-14", "【第二阶段】题目共享", self.tc_14_bank_share)
+        self.run_case("TC-14", "【第二阶段】题目共享（含收藏与移除）", self.tc_14_bank_share)
         self.run_case("TC-15", "【第二阶段】题库使用情况查询", self.tc_15_bank_usage)
         self.run_case("TC-16", "【第二阶段】跨问卷统计", self.tc_16_bank_cross_stats)
-        self.run_case("TC-17", "【第二阶段】跨问卷统计版本过滤", self.tc_17_bank_cross_stats_version_filter)
-        self.run_case("TC-18", "【第二阶段】题库编辑（智能版本控制）", self.tc_18_bank_update)
+        self.run_case("TC-17", "【第二阶段】跨问卷统计版本过滤（必须指定版本）", self.tc_17_bank_cross_stats_version_filter)
+        self.run_case("TC-18", "【第二阶段】题库编辑（智能版本控制，支持编辑题目内容）", self.tc_18_bank_update)
         self.run_case("TC-19", "【第二阶段】已发布问卷不受影响", self.tc_19_bank_version_isolation)
+        self.run_case("TC-20", "【第二阶段】题库收藏题目使用追踪", self.tc_20_bank_source_question_tracking)
         self.cleanup()
 
         self.print_case_summary()

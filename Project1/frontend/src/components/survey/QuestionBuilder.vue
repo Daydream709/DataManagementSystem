@@ -228,7 +228,8 @@ const saveToBank = async (item) => {
       type: item.type,
       title: item.title,
       options: item.options || [],
-      validation: item.validation || {}
+      validation: item.validation || {},
+      source_question_id: item.id
     }
     await createQuestionBankApi(payload)
     message.value = `「${item.title}」已保存到题库`

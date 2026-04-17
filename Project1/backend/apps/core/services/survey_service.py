@@ -796,6 +796,7 @@ def list_question_bank(owner_id: str) -> list[dict[str, Any]]:
 
 def create_question_bank_item(owner_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     bank = get_collection("question_bank")
+    questions_col = get_collection("questions")
     now = _now()
     owner_oid = to_object_id(owner_id, "owner_id")
 
@@ -819,6 +820,19 @@ def create_question_bank_item(owner_id: str, payload: dict[str, Any]) -> dict[st
 
     bank.update_one({"_id": doc["_id"]}, {"$set": {"chain_id": doc["_id"]}})
     doc["chain_id"] = doc["_id"]
+
+    # Tag the source question with bank info so it appears in usage tracking
+    source_question_id = payload.get("source_question_id")
+    if source_question_id:
+        source_oid = to_object_id(source_question_id, "source_question_id")
+        questions_col.update_one(
+            {"_id": source_oid, "owner_id": owner_oid},
+            {"$set": {
+                "bank_item_id": doc["_id"],
+                "bank_chain_id": doc["chain_id"],
+                "bank_version": 1,
+            }},
+        )
 
     return _qbank_to_response(doc)
 
@@ -1044,6 +1058,21 @@ def share_bank_item(owner_id: str, item_id: str, usernames: list[str]) -> dict[s
     return {"shared_with_count": len(shared_user_ids), "chain_id": str(chain_id)}
 
 
+def remove_shared_bank_item(owner_id: str, item_id: str) -> None:
+    bank = get_collection("question_bank")
+    owner_oid = to_object_id(owner_id, "owner_id")
+    oid = to_object_id(item_id, "item_id")
+
+    item = bank.find_one({"_id": oid, "shared_with": owner_oid})
+    if not item:
+        raise NotFound("共享题目不存在或无权操作")
+
+    bank.update_many(
+        {"chain_id": item["chain_id"]},
+        {"$pull": {"shared_with": owner_oid}},
+    )
+
+
 def list_shared_bank_items(owner_id: str) -> list[dict[str, Any]]:
     bank = get_collection("question_bank")
     users = get_collection("users")
@@ -1105,24 +1134,20 @@ def get_bank_cross_stats(owner_id: str, item_id: str, version_item_id: str | Non
     if not item:
         raise NotFound("题库题目不存在")
 
-    # 如果指定了版本，使用该版本的数据进行统计
-    stats_item = item
-    if version_item_id:
-        version_oid = to_object_id(version_item_id, "version_item_id")
-        version_item = bank.find_one({"_id": version_oid, "chain_id": item["chain_id"]})
-        if not version_item:
-            raise NotFound("指定版本不存在")
-        stats_item = version_item
+    # 必须指定版本才进行统计
+    if not version_item_id:
+        raise ValidationError({"version_item_id": "跨问卷统计必须指定版本"})
+
+    version_oid = to_object_id(version_item_id, "version_item_id")
+    version_item = bank.find_one({"_id": version_oid, "chain_id": item["chain_id"]})
+    if not version_item:
+        raise NotFound("指定版本不存在")
 
     chain_id = item["chain_id"]
-    # 如果指定了版本，只统计使用该版本的问卷题目
-    if version_item_id:
-        related_questions = list(questions_col.find({
-            "bank_chain_id": chain_id,
-            "bank_item_id": stats_item["_id"],
-        }))
-    else:
-        related_questions = list(questions_col.find({"bank_chain_id": chain_id}))
+    related_questions = list(questions_col.find({
+        "bank_chain_id": chain_id,
+        "bank_item_id": version_item["_id"],
+    }))
 
     if not related_questions:
         return {

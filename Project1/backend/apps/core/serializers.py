@@ -184,6 +184,7 @@ class QuestionBankCreateSerializer(serializers.Serializer):
     options = OptionSerializer(many=True, required=False)
     validation = serializers.DictField(required=False)
     version_note = serializers.CharField(max_length=500, required=False, allow_blank=True)
+    source_question_id = serializers.CharField(required=False, allow_blank=True)
 
     def validate(self, attrs):
         q_type = attrs["type"]

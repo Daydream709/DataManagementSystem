@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 
 import {
   createNewBankVersionApi,
+  createQuestionBankApi,
   deleteQuestionBankApi,
   getBankCrossStatsApi,
   getBankUsageApi,
@@ -10,6 +11,7 @@ import {
   listBankVersionsApi,
   listQuestionBankApi,
   listSharedBankApi,
+  removeSharedBankApi,
   restoreBankVersionApi,
   shareBankItemApi,
   updateBankItemApi
@@ -48,7 +50,20 @@ const shareUsernames = ref('')
 const newVersionForm = ref({ title: '', version_note: '' })
 
 // Edit form
-const editForm = ref({ title: '', version_note: '' })
+const editForm = ref({
+  title: '',
+  type: 'single_choice',
+  version_note: '',
+  optionLabels: ['选项1', '选项2'],
+  multiMin: '',
+  multiMax: '',
+  fillValueType: 'text',
+  textMin: '',
+  textMax: '',
+  numberMin: '',
+  numberMax: '',
+  numberInteger: false
+})
 const editVersions = ref([])
 const editSelectedVersion = ref(null)
 
@@ -185,10 +200,10 @@ const showCrossStats = async (item, versionItemId = null) => {
   detailMode.value = 'cross-stats'
   detailItem.value = item
   detailData.value = null
-  crossStatsSelectedVersion.value = versionItemId
+  crossStatsSelectedVersion.value = versionItemId || item.id
   try {
     const [stats, versions] = await Promise.all([
-      getBankCrossStatsApi(item.id, versionItemId),
+      getBankCrossStatsApi(item.id, versionItemId || item.id),
       listBankVersionsApi(item.id)
     ])
     detailData.value = stats
@@ -200,18 +215,47 @@ const showCrossStats = async (item, versionItemId = null) => {
 
 const changeCrossStatsVersion = async (versionItemId) => {
   if (!detailItem.value) return
-  crossStatsSelectedVersion.value = versionItemId || null
+  crossStatsSelectedVersion.value = versionItemId
   try {
-    detailData.value = await getBankCrossStatsApi(detailItem.value.id, versionItemId || null)
+    detailData.value = await getBankCrossStatsApi(detailItem.value.id, versionItemId)
   } catch (error) {
     errorMessage.value = error.message
+  }
+}
+
+const editAddOption = () => {
+  editForm.value.optionLabels.push(`选项${editForm.value.optionLabels.length + 1}`)
+}
+
+const editRemoveOption = (index) => {
+  if (editForm.value.optionLabels.length <= 2) return
+  editForm.value.optionLabels.splice(index, 1)
+}
+
+const applyVersionToEditForm = (version) => {
+  editForm.value = {
+    title: version.title,
+    type: version.type || 'single_choice',
+    version_note: version.version_note || '',
+    optionLabels: (version.options || []).map(o => o.label),
+    multiMin: (version.validation || {}).min_select ?? '',
+    multiMax: (version.validation || {}).max_select ?? '',
+    fillValueType: (version.validation || {}).value_type || 'text',
+    textMin: (version.validation || {}).min_length ?? '',
+    textMax: (version.validation || {}).max_length ?? '',
+    numberMin: (version.validation || {}).min_value ?? '',
+    numberMax: (version.validation || {}).max_value ?? '',
+    numberInteger: Boolean((version.validation || {}).is_integer)
+  }
+  if (editForm.value.optionLabels.length < 2) {
+    editForm.value.optionLabels = ['选项1', '选项2']
   }
 }
 
 const showEdit = async (item) => {
   detailMode.value = 'edit'
   detailItem.value = item
-  editForm.value = { title: item.title, version_note: item.version_note || '' }
+  applyVersionToEditForm(item)
   editSelectedVersion.value = item.id
   try {
     editVersions.value = await listBankVersionsApi(item.id)
@@ -222,7 +266,44 @@ const showEdit = async (item) => {
 
 const selectEditVersion = (version) => {
   editSelectedVersion.value = version.id
-  editForm.value = { title: version.title, version_note: version.version_note || '' }
+  applyVersionToEditForm(version)
+}
+
+const buildEditPayload = () => {
+  const form = editForm.value
+  const payload = {}
+  if (form.title.trim()) payload.title = form.title.trim()
+  payload.type = form.type
+  payload.version_note = form.version_note.trim()
+
+  if (form.type === 'single_choice' || form.type === 'multi_choice') {
+    const labels = form.optionLabels.map(l => l.trim()).filter(l => l)
+    payload.options = labels.map((label, i) => ({
+      key: i < 26 ? String.fromCharCode(65 + i) : `OPT_${i + 1}`,
+      label
+    }))
+    payload.validation = {}
+    if (form.type === 'multi_choice') {
+      if (form.multiMin !== '') payload.validation.min_select = Number(form.multiMin)
+      if (form.multiMax !== '') payload.validation.max_select = Number(form.multiMax)
+    }
+  }
+
+  if (form.type === 'fill_blank') {
+    payload.options = []
+    payload.validation = { value_type: form.fillValueType }
+    if (form.fillValueType === 'text') {
+      if (form.textMin !== '') payload.validation.min_length = Number(form.textMin)
+      if (form.textMax !== '') payload.validation.max_length = Number(form.textMax)
+    }
+    if (form.fillValueType === 'number') {
+      if (form.numberMin !== '') payload.validation.min_value = Number(form.numberMin)
+      if (form.numberMax !== '') payload.validation.max_value = Number(form.numberMax)
+      payload.validation.is_integer = Boolean(form.numberInteger)
+    }
+  }
+
+  return payload
 }
 
 const submitEdit = async () => {
@@ -230,9 +311,7 @@ const submitEdit = async () => {
   message.value = ''
   errorMessage.value = ''
   try {
-    const payload = {}
-    if (editForm.value.title.trim()) payload.title = editForm.value.title.trim()
-    if (editForm.value.version_note.trim()) payload.version_note = editForm.value.version_note.trim()
+    const payload = buildEditPayload()
     const result = await updateBankItemApi(editSelectedVersion.value, payload)
     message.value = result.version !== detailItem.value.version
       ? `版本已被使用，已自动创建新版本 v${result.version}`
@@ -297,6 +376,41 @@ const restoreVersion = async (versionItemId) => {
     message.value = '版本已切换'
     await showVersions(detailItem.value)
     await fetchCurrentTab()
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    loading.value = false
+  }
+}
+
+const collectSharedItem = async (item) => {
+  loading.value = true
+  message.value = ''
+  errorMessage.value = ''
+  try {
+    await createQuestionBankApi({
+      type: item.type,
+      title: item.title,
+      options: item.options || [],
+      validation: item.validation || {}
+    })
+    message.value = `「${item.title}」已收藏到我的题库`
+    await fetchMine()
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    loading.value = false
+  }
+}
+
+const removeSharedItem = async (itemId) => {
+  loading.value = true
+  message.value = ''
+  errorMessage.value = ''
+  try {
+    await removeSharedBankApi(itemId)
+    message.value = '已移除共享题目'
+    await fetchShared()
   } catch (error) {
     errorMessage.value = error.message
   } finally {
@@ -381,6 +495,10 @@ onMounted(() => {
             </div>
             <button class="btn-primary shrink-0 text-xs" :disabled="loading" @click="importItem(item)">导入</button>
           </div>
+          <div class="mt-2 flex flex-wrap gap-1.5">
+            <button class="rounded-lg bg-emerald-100 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-200" :disabled="loading" @click="collectSharedItem(item)">收藏</button>
+            <button class="rounded-lg bg-coral/10 px-2 py-1 text-xs text-coral hover:bg-coral/20" :disabled="loading" @click="removeSharedItem(item.id)">删除</button>
+          </div>
         </div>
       </template>
     </div>
@@ -461,6 +579,51 @@ onMounted(() => {
         </div>
         <div class="space-y-2">
           <input v-model="editForm.title" class="input" placeholder="题目标题" />
+          <select v-model="editForm.type" class="input">
+            <option value="single_choice">单选题</option>
+            <option value="multi_choice">多选题</option>
+            <option value="fill_blank">填空题</option>
+          </select>
+
+          <template v-if="editForm.type === 'single_choice' || editForm.type === 'multi_choice'">
+            <p class="text-xs font-semibold text-slate-600">选项配置</p>
+            <div v-for="(_, index) in editForm.optionLabels" :key="index" class="flex items-center gap-2">
+              <input v-model="editForm.optionLabels[index]" class="input flex-1" :placeholder="`选项 ${index + 1}`" />
+              <button class="rounded-lg bg-coral/10 px-2 py-1 text-xs text-coral hover:bg-coral/20"
+                @click="editRemoveOption(index)" :disabled="editForm.optionLabels.length <= 2">删除</button>
+            </div>
+            <button class="rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-600 hover:bg-slate-200" @click="editAddOption">新增选项</button>
+          </template>
+
+          <template v-if="editForm.type === 'multi_choice'">
+            <div class="grid gap-2 md:grid-cols-2">
+              <input v-model="editForm.multiMin" class="input" type="number" min="0" placeholder="最少选择数量（可选）" />
+              <input v-model="editForm.multiMax" class="input" type="number" min="1" placeholder="最多选择数量（可选）" />
+            </div>
+          </template>
+
+          <template v-if="editForm.type === 'fill_blank'">
+            <select v-model="editForm.fillValueType" class="input">
+              <option value="text">文本填空</option>
+              <option value="number">数字填空</option>
+            </select>
+            <template v-if="editForm.fillValueType === 'text'">
+              <div class="grid gap-2 md:grid-cols-2">
+                <input v-model="editForm.textMin" class="input" type="number" min="0" placeholder="最少字数（可选）" />
+                <input v-model="editForm.textMax" class="input" type="number" min="1" placeholder="最多字数（可选）" />
+              </div>
+            </template>
+            <template v-else>
+              <div class="grid gap-2 md:grid-cols-2">
+                <input v-model="editForm.numberMin" class="input" type="number" placeholder="最小值（可选）" />
+                <input v-model="editForm.numberMax" class="input" type="number" placeholder="最大值（可选）" />
+              </div>
+              <label class="flex items-center gap-2 text-xs">
+                <input v-model="editForm.numberInteger" type="checkbox" /> 仅允许整数
+              </label>
+            </template>
+          </template>
+
           <input v-model="editForm.version_note" class="input" placeholder="版本说明（可选）" />
           <p class="text-xs text-slate-400">
             提示：如果该版本已被问卷使用，系统会自动创建新版本；未使用的版本将直接修改。
@@ -476,14 +639,8 @@ onMounted(() => {
       <div v-if="detailMode === 'cross-stats' && detailData" class="mt-3 space-y-3">
         <!-- Version selector for cross-stats -->
         <div v-if="crossStatsVersions.length > 1" class="space-y-1">
-          <p class="text-xs font-semibold text-slate-600">选择统计版本范围</p>
+          <p class="text-xs font-semibold text-slate-600">选择统计版本</p>
           <div class="flex flex-wrap gap-1.5">
-            <button
-              class="rounded-lg px-2 py-1 text-xs transition-colors"
-              :class="!crossStatsSelectedVersion ? 'bg-ocean text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
-              @click="changeCrossStatsVersion(null)">
-              全部版本
-            </button>
             <button v-for="v in crossStatsVersions" :key="v.id"
               class="rounded-lg px-2 py-1 text-xs transition-colors"
               :class="crossStatsSelectedVersion === v.id ? 'bg-ocean text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"

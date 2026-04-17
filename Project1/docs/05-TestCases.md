@@ -22,17 +22,18 @@
 9. 发布/关闭不可回草稿。
 10. 统计用户名可见性（匿名隐藏）。
 
-第二阶段新增（TC-11 ~ TC-19）：
+第二阶段新增（TC-11 ~ TC-20）：
 
 11. 题库保存与列表。
 12. 从题库导入到问卷。
 13. 题库版本管理（直接切换版本）。
-14. 题目共享（定向分享）。
+14. 题目共享（定向分享、收藏到我的题库、移除共享题目）。
 15. 题库使用情况查询。
 16. 跨问卷统计。
-17. 跨问卷统计版本过滤。
-18. 题库编辑（智能版本控制）。
+17. 跨问卷统计版本过滤（必须选择特定版本）。
+18. 题库编辑（智能版本控制，支持编辑题目内容）。
 19. 已发布问卷不受题库修改影响。
+20. 题库收藏题目使用追踪。
 
 ## 5.2 测试环境
 
@@ -82,12 +83,13 @@
 | TC-11  | 【第二阶段】题库保存与列表      | 题库管理           |
 | TC-12  | 【第二阶段】从题库导入到问卷    | 题库复用           |
 | TC-13  | 【第二阶段】题库版本管理        | 版本链             |
-| TC-14  | 【第二阶段】题目共享            | 共享               |
+| TC-14  | 【第二阶段】题目共享（含收藏与移除） | 共享               |
 | TC-15  | 【第二阶段】题库使用情况查询    | 使用追踪           |
 | TC-16  | 【第二阶段】跨问卷统计          | 跨问卷统计         |
-| TC-17  | 【第二阶段】跨问卷统计版本过滤  | 版本筛选统计       |
-| TC-18  | 【第二阶段】题库编辑（智能版本控制） | 编辑题目      |
+| TC-17  | 【第二阶段】跨问卷统计版本过滤（必须选择特定版本） | 版本筛选统计       |
+| TC-18  | 【第二阶段】题库编辑（智能版本控制，支持编辑题目内容） | 编辑题目      |
 | TC-19  | 【第二阶段】已发布问卷不受影响  | 版本隔离           |
+| TC-20  | 【第二阶段】题库收藏题目使用追踪 | 使用追踪           |
 
 ## 5.5 自动化 API 测试脚本
 
@@ -104,7 +106,7 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 
 脚本覆盖范围:
 
-1. TC-01 到 TC-19 全部覆盖。
+1. TC-01 到 TC-20 全部覆盖。
 2. 自动创建测试用户与测试问卷。
 3. 自动执行并输出 PASS/FAIL。
 4. 每一步打印 API 方法、路径、请求体和服务器实际响应（状态码与响应体）。
@@ -999,7 +1001,8 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
     { "key": "C", "label": "大三" },
     { "key": "D", "label": "大四" }
   ],
-  "version_note": "初始版本"
+  "version_note": "初始版本",
+  "source_question_id": "Q1_ID"
 }
 ```
 
@@ -1152,7 +1155,7 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 2. 版本历史返回 2 条记录，按 version 升序。
 3. 切换成功: HTTP 200, code=0, data.version=1, data.title="你的年级", data.is_latest=true（未创建新版本）。
 
-### TC-14 【第二阶段】题目共享
+### TC-14 【第二阶段】题目共享（含收藏与移除）
 
 #### A. 手动测试方法
 
@@ -1168,6 +1171,10 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 3. 用户E登录后进入任意问卷编辑页。
 4. 切换到「共享题目」标签，确认看到共享的题目。
 5. 点击「导入」确认可以使用。
+6. 点击共享题目的「收藏」按钮。
+7. 切换到「我的题库」标签，确认收藏的题目已出现。
+8. 切换回「共享题目」标签，点击共享题目的「删除」按钮。
+9. 确认该共享题目已从列表中消失。
 
 输入:
 
@@ -1178,14 +1185,8 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 1. 共享成功提示。
 2. 用户E在共享题目列表中看到该题目。
 3. 用户E可以成功导入该题目到自己的问卷。
-
-#### B. API测试方法
-
-步骤:
-
-1. POST /api/question-bank/{item_id}/share 共享给用户E。
-2. 使用用户E token 调用 GET /api/question-bank/shared 查看共享列表。
-3. 使用用户E token 调用 POST /api/surveys/{survey_id}/questions/import 导入共享题目。
+4. 收藏后用户E的「我的题库」中出现该题目。
+5. 删除后共享列表中不再显示该题目。
 
 每一步输入:
 
@@ -1234,6 +1235,9 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 1. 共享成功: HTTP 200, code=0。
 2. 共享列表返回 1 条记录，owner_username 为用户A。
 3. 导入成功: HTTP 201, code=0。
+4. 收藏成功: HTTP 201, code=0，用户E的「我的题库」列表中出现该题目。
+5. 移除共享成功: HTTP 200, code=0。
+6. 共享列表不再包含该题目。
 
 ### TC-15 【第二阶段】题库使用情况查询
 
@@ -1315,7 +1319,7 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 3. data.stats 包含按题型聚合的统计结果。
 4. data.stats.total_answered >= 0。
 
-### TC-17 【第二阶段】跨问卷统计版本过滤
+### TC-17 【第二阶段】跨问卷统计版本过滤（必须选择特定版本）
 
 #### A. 手动测试方法
 
@@ -1326,21 +1330,23 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 步骤:
 
 1. 在「我的题库」面板中点击题目的「跨问卷统计」按钮。
-2. 查看默认的全部版本聚合统计。
+2. 默认显示当前最新版本的统计。
 3. 点击版本选择器中的某个特定版本（如 v1）。
 4. 确认统计数据仅包含该版本对应问卷的回答。
 
 预期输出:
 
-1. 全部版本统计显示所有版本的总计数。
+1. 默认显示当前版本的统计数据。
 2. 选择特定版本后，统计仅针对使用该版本的问卷。
+3. 不提供"全部版本"统计范围。
 
 #### B. API测试方法
 
 步骤:
 
-1. GET /api/question-bank/{item_id}/cross-stats 查询全部版本统计。
+1. GET /api/question-bank/{item_id}/cross-stats 不传 version_item_id，应返回错误。
 2. GET /api/question-bank/{item_id}/cross-stats?version_item_id={v1_id} 查询指定版本统计。
+3. GET /api/question-bank/{item_id}/cross-stats?version_item_id={v2_id} 查询另一个版本统计。
 
 每一步输入:
 
@@ -1358,12 +1364,20 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 - Header: Authorization: Bearer <owner_token>
 - Body: 无
 
+3. 步骤3 输入:
+
+- 方法与路径: GET /api/question-bank/{item_id}/cross-stats?version_item_id={v2_id}
+- 路径参数: item_id=题库条目 ID
+- Header: Authorization: Bearer <owner_token>
+- Body: 无
+
 预期输出:
 
-1. 全部版本统计: HTTP 200, code=0, data.total_submissions 为全部版本总数。
-2. 指定版本统计: HTTP 200, code=0, data.total_submissions <= 全部版本总数。
+1. 不传版本: HTTP >= 400，code=1，提示必须指定版本。
+2. 指定版本统计: HTTP 200, code=0, data.total_submissions 为该版本的使用数据。
+3. 不同版本的统计数据独立。
 
-### TC-18 【第二阶段】题库编辑（智能版本控制）
+### TC-18 【第二阶段】题库编辑（智能版本控制，支持编辑题目内容）
 
 #### A. 手动测试方法
 
@@ -1374,15 +1388,15 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 步骤:
 
 1. 在「我的题库」面板中点击未使用题目的「编辑」按钮。
-2. 修改标题，点击保存。
-3. 确认版本号未变（直接修改）。
+2. 修改标题和选项内容，点击保存。
+3. 确认版本号未变（直接修改），题目内容已更新。
 4. 点击已使用题目的「编辑」按钮。
-5. 修改标题，点击保存。
+5. 修改标题和题型配置，点击保存。
 6. 确认自动创建了新版本。
 
 预期输出:
 
-1. 未使用题目编辑后版本号不变，直接修改内容。
+1. 未使用题目编辑后版本号不变，直接修改内容（标题、选项、校验等）。
 2. 已使用题目编辑后自动创建新版本，旧版本保留。
 
 #### B. API测试方法
@@ -1430,6 +1444,12 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 ```json
 {
   "title": "修改后的未使用题",
+  "type": "single_choice",
+  "options": [
+    { "key": "A", "label": "新选项A" },
+    { "key": "B", "label": "新选项B" }
+  ],
+  "validation": {},
   "version_note": "直接修改"
 }
 ```
@@ -1446,15 +1466,22 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 ```json
 {
   "title": "已使用题目的修改",
+  "type": "single_choice",
+  "options": [
+    { "key": "A", "label": "选项A" },
+    { "key": "B", "label": "选项B" },
+    { "key": "C", "label": "选项C" }
+  ],
+  "validation": {},
   "version_note": "应创建新版本"
 }
 ```
 
 预期输出:
 
-1. 未使用题目编辑成功: HTTP 200, data.version=1（未变），data.title 已更新。
+1. 未使用题目编辑成功: HTTP 200, data.version=1（未变），data.title 和 data.options 已更新。
 2. 版本列表仍为 1 条。
-3. 已使用题目编辑成功: HTTP 200, data.version > 之前版本号（自动创建新版本）。
+3. 已使用题目编辑成功: HTTP 200, data.version > 之前版本号（自动创建新版本），内容已更新。
 
 ### TC-19 【第二阶段】已发布问卷不受题库修改影响
 
@@ -1512,3 +1539,66 @@ python tests/run_api_test_suite.py --base-url http://127.0.0.1:8000/api
 
 1. 新版本创建成功: HTTP 201, code=0, data.title="修改后的标题"。
 2. 已发布问卷中的题目标题仍为原标题（非"修改后的标题"），证明版本隔离有效。
+
+### TC-20 【第二阶段】题库收藏题目使用追踪
+
+#### A. 手动测试方法
+
+前置条件:
+
+1. 用户A已创建草稿问卷并添加了题目。
+
+步骤:
+
+1. 在问卷编辑页题目列表中，点击某题目的「收藏」按钮。
+2. 在「我的题库」面板中点击该题目的「使用情况」按钮。
+3. 确认使用情况中包含了当前问卷（原始问卷）。
+
+预期输出:
+
+1. 收藏成功提示。
+2. 使用情况列表中包含原始问卷的信息（问卷标题、状态、题目顺序）。
+
+#### B. API测试方法
+
+步骤:
+
+1. POST /api/question-bank 保存题目到题库（带 source_question_id）。
+2. GET /api/question-bank/{item_id}/usage 查询使用情况。
+
+每一步输入:
+
+1. 步骤1 输入:
+
+- 方法与路径: POST /api/question-bank
+- Header:
+  - Content-Type: application/json
+  - Authorization: Bearer <owner_token>
+
+- Body:
+
+```json
+{
+  "type": "single_choice",
+  "title": "追踪测试题",
+  "options": [
+    { "key": "A", "label": "选项A" },
+    { "key": "B", "label": "选项B" }
+  ],
+  "version_note": "追踪来源",
+  "source_question_id": "原始题目ID"
+}
+```
+
+2. 步骤2 输入:
+
+- 方法与路径: GET /api/question-bank/{item_id}/usage
+- 路径参数: item_id=步骤1返回的题库条目 ID
+- Header: Authorization: Bearer <owner_token>
+- Body: 无
+
+预期输出:
+
+1. 保存成功: HTTP 201, code=0。
+2. 使用情况返回至少 1 条记录，包含原始问卷的信息。
+3. 记录中包含 survey_id、survey_title、survey_status、question_id、bank_version=1。

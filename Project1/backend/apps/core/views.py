@@ -45,6 +45,7 @@ from .services.survey_service import (
     list_questions,
     list_shared_bank_items,
     list_surveys,
+    remove_shared_bank_item,
     restore_bank_version,
     share_bank_item,
     submit_survey,
@@ -303,3 +304,9 @@ class QuestionBankCrossStatsView(APIView):
         version_item_id = request.query_params.get("version_item_id")
         data = get_bank_cross_stats(request.user.id, item_id, version_item_id)
         return ok(data=data)
+
+
+class QuestionBankRemoveSharedView(APIView):
+    def post(self, request, item_id: str):
+        remove_shared_bank_item(request.user.id, item_id)
+        return ok(message="已移除共享题目")
